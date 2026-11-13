@@ -1,0 +1,14 @@
+target/
+node_modules/
+.pnpm-store/
+dist/
+apps/web/src/wasm/pkg/
+data/
+python/.venv/
+*.pyc
+__pycache__/
+runs/
+*.so
+crates/*/bindings/
+apps/web/test-results/
+apps/web/playwright-report/

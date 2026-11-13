@@ -1,0 +1,6 @@
+[package]
+name = "uno-protocol"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

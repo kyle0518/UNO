@@ -1,0 +1,6 @@
+[package]
+name = "uno-py"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

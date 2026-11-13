@@ -1,0 +1,12 @@
+[package]
+name = "uno-bots"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+onnx = []
+
+[dependencies]
+thiserror.workspace = true
+uno-core = { path = "../uno-core" }
