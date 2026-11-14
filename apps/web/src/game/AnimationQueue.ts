@@ -89,6 +89,13 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
       }))
       return {
         ...view,
+        phase: 'play',
+        decision_player: null,
+        uno_window: null,
+        drawn_card: null,
+        discard: [],
+        my_hand: [],
+        legal: [],
         round: event.round,
         dealer: event.dealer,
         side: 'light',
@@ -104,10 +111,11 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
         top_card: event.card,
         discard: [...view.discard, event.card],
         active_color: face.color ?? view.active_color,
+        legal: [],
       }
     }
     case 'turn_started':
-      return { ...view, current: event.seat }
+      return { ...view, current: event.seat, legal: [] }
     case 'card_played': {
       const face = activeCardFace(event.card, view.side)
       const targetPlayer = view.players.find((p) => p.seat === event.seat)
@@ -121,6 +129,8 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
         top_card: event.card,
         discard: [...view.discard, event.card],
         active_color: face.color ?? view.active_color,
+        drawn_card: null,
+        legal: [],
         players: updatePlayerAt(view.players, event.seat, { hand_size: nextSize }),
         my_hand,
       }
@@ -141,6 +151,7 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
         top_card: lastCard ?? view.top_card,
         discard: [...view.discard, ...event.cards],
         active_color: lastFace?.color ?? view.active_color,
+        legal: [],
         players: updatePlayerAt(view.players, event.seat, { hand_size: nextSize }),
         my_hand,
       }
@@ -155,6 +166,7 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
       return {
         ...view,
         draw_pile_size: Math.max(0, view.draw_pile_size - event.count),
+        legal: [],
         players: updatePlayerAt(view.players, event.seat, {
           hand_size: nextSize,
           uno_called: nextSize >= 2 ? false : (targetPlayer?.uno_called ?? false),
@@ -171,6 +183,7 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
       return {
         ...view,
         active_color: event.color,
+        legal: [],
       }
     case 'direction_changed':
       return {
@@ -185,11 +198,23 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
     case 'uno_called':
       return {
         ...view,
+        uno_window: view.uno_window === event.seat ? null : view.uno_window,
+        legal: view.legal.filter(
+          (a) =>
+            !(a.type === 'call_uno' && view.me === event.seat) &&
+            !(a.type === 'catch_uno' && a.target === event.seat),
+        ),
         players: updatePlayerAt(view.players, event.seat, { uno_called: true }),
       }
     case 'uno_caught':
       return {
         ...view,
+        uno_window: view.uno_window === event.target ? null : view.uno_window,
+        legal: view.legal.filter(
+          (a) =>
+            !(a.type === 'call_uno' && view.me === event.target) &&
+            !(a.type === 'catch_uno' && a.target === event.target),
+        ),
         players: updatePlayerAt(view.players, event.target, { uno_called: false }),
       }
     case 'side_flipped':
@@ -197,6 +222,7 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
         ...view,
         side: event.side,
         active_color: activeCardFace(view.top_card, event.side).color ?? null,
+        legal: [],
       }
     case 'player_eliminated':
       return {
@@ -206,6 +232,11 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
     case 'round_ended':
       return {
         ...view,
+        phase: 'round_over',
+        decision_player: null,
+        uno_window: null,
+        drawn_card: null,
+        legal: [],
         players: view.players.map((p, idx) => ({
           ...p,
           score: event.totals[idx] ?? p.score,
@@ -214,13 +245,18 @@ export function applyEventToDisplayView(view: PlayerView, event: Event): PlayerV
     case 'game_ended':
       return {
         ...view,
+        phase: 'game_over',
+        decision_player: null,
+        uno_window: null,
+        drawn_card: null,
+        legal: [],
         rankings: event.rankings,
       }
     case 'player_skipped':
     case 'challenge_resolved':
     case 'hands_swapped':
     case 'hands_rotated':
-      return view
+      return { ...view, legal: [] }
   }
 }
 

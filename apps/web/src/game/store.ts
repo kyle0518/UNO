@@ -36,6 +36,7 @@ export interface GameStoreState {
   flipping: boolean
   confettiSeq: number
   selectedCardId: number | null
+  nextRoundPending: boolean
   timer: LocalTurnTimer | null
   lastError: string | null
   chat: ChatEntry[]
@@ -53,6 +54,24 @@ let fxSeq = 0
 let unsubscribeClient: (() => void) | null = null
 let activeQueue: AnimationQueue | null = null
 let fxClearTimer: ReturnType<typeof setTimeout> | null = null
+
+function isActionInLegal(legal: readonly Action[], action: Action): boolean {
+  return legal.some((candidate) => {
+    if (candidate.type !== action.type) return false
+    switch (candidate.type) {
+      case 'play':
+      case 'jump_in':
+        return candidate.card === (action as { card: number }).card
+      case 'choose_color':
+        return candidate.color === (action as { color: Color }).color
+      case 'choose_target':
+      case 'catch_uno':
+        return candidate.target === (action as { target: number }).target
+      default:
+        return true
+    }
+  })
+}
 
 function scheduleFxClear(ms: number, clearFn: () => void): void {
   if (fxClearTimer !== null) {
@@ -190,6 +209,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   flipping: false,
   confettiSeq: 0,
   selectedCardId: null,
+  nextRoundPending: false,
   timer: null,
   lastError: null,
   chat: [],
@@ -211,6 +231,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       flipping: false,
       confettiSeq: 0,
       selectedCardId: null,
+      nextRoundPending: false,
       timer: null,
       lastError: null,
       chat: [],
@@ -247,6 +268,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       animating: false,
       activeFx: null,
       selectedCardId: null,
+      nextRoundPending: false,
       timer: null,
     })
   },
@@ -264,6 +286,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
           animating: false,
           activeFx: null,
           selectedCardId: null,
+          nextRoundPending: false,
           lastError: null,
         })
         if (
@@ -281,6 +304,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
           view: update.view,
           timer: update.timer ?? null,
           selectedCardId: null,
+          nextRoundPending: update.view.phase === 'round_over' ? get().nextRoundPending : false,
           lastError: null,
         })
         if (!get().displayView) {
@@ -291,7 +315,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       }
       case 'error': {
         playSound('error')
-        set({ lastError: update.message })
+        set({ lastError: update.message, nextRoundPending: false })
         break
       }
       case 'chat': {
@@ -315,15 +339,25 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   clearError: () => set({ lastError: null }),
 
   sendAction: (action) => {
-    const client = get().client
+    const { client, view } = get()
     if (!client) return
+    if (
+      view &&
+      action.type !== 'timeout' &&
+      action.type !== 'end_by_time' &&
+      !isActionInLegal(view.legal, action)
+    ) {
+      set({ selectedCardId: null })
+      return
+    }
     set({ selectedCardId: null, lastError: null })
     client.send(action)
   },
 
   nextRound: () => {
-    const client = get().client
-    if (!client) return
+    const { client, view, nextRoundPending } = get()
+    if (!client || nextRoundPending || view?.phase !== 'round_over') return
+    set({ nextRoundPending: true, lastError: null })
     client.nextRound()
   },
 }))

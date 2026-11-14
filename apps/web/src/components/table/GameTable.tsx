@@ -33,6 +33,7 @@ export interface GameTableProps {
   colorRipple: { color: NonNullable<PlayerView['active_color']>; seq: number } | null
   flipping: boolean
   confettiSeq: number
+  nextRoundPending?: boolean
   onSelectCard: (cardId: number | null) => void
   onSendAction: (action: Action) => void
   onNextRound: () => void
@@ -51,6 +52,7 @@ export function GameTable({
   colorRipple,
   flipping,
   confettiSeq,
+  nextRoundPending = false,
   onSelectCard,
   onSendAction,
   onNextRound,
@@ -328,6 +330,7 @@ export function GameTable({
           playerNames={playerNames}
           winnerSeat={roundEvent?.winner ?? null}
           roundDeltas={roundEvent?.scores}
+          nextRoundPending={nextRoundPending}
           onNextRound={onNextRound}
         />
       </div>

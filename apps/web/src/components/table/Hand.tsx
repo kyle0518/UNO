@@ -42,11 +42,17 @@ export function Hand({
 
   const pointerStartRef = useRef<{
     cardId: number
+    pointerId: number
     x: number
     y: number
-    pointerType: string
+    capturing: boolean
   } | null>(null)
+  const lastPointerTypeRef = useRef<string>('mouse')
   const swipedCardRef = useRef<number | null>(null)
+  const [dragState, setDragState] = useState<{
+    cardId: number
+    offsetY: number
+  } | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -200,13 +206,26 @@ export function Hand({
               ? 'selected'
               : 'playable'
 
+          const isDragging = dragState?.cardId === card.id
+          const dragOffsetY = isDragging ? dragState.offsetY : 0
+
+          const releaseCapture = (el: HTMLDivElement, pointerId: number) => {
+            try {
+              if (el.hasPointerCapture?.(pointerId)) {
+                el.releasePointerCapture(pointerId)
+              }
+            } catch {
+              // ignore in environments without pointer capture
+            }
+          }
+
           const handleTrigger = () => {
             if (!action) return
             if (swipedCardRef.current === card.id) {
               swipedCardRef.current = null
               return
             }
-            const pointerType = pointerStartRef.current?.pointerType
+            const pointerType = lastPointerTypeRef.current
             pointerStartRef.current = null
             if (pointerType === 'touch' || pointerType === 'pen') {
               if (isSelected) {
@@ -226,31 +245,84 @@ export function Hand({
                 cardRefs.current[idx] = el
               }}
               layoutId={useAnim ? `card-${card.id}` : undefined}
+              animate={{ y: dragOffsetY }}
+              transition={isDragging ? { duration: 0 } : undefined}
               data-card-id={card.id}
               data-playable={isPlayable ? 'true' : 'false'}
               style={{
                 marginLeft: idx === 0 ? 0 : `${overlapMargin}px`,
-                zIndex: isSelected ? 50 : idx + 1,
+                zIndex: isDragging ? 60 : isSelected ? 50 : idx + 1,
+                touchAction: action ? 'pan-x' : undefined,
               }}
               onPointerDown={(e) => {
                 setKbdActive(false)
                 setFocusedIdx(idx)
+                lastPointerTypeRef.current = e.pointerType || 'mouse'
                 swipedCardRef.current = null
+                if (!action) {
+                  pointerStartRef.current = null
+                  return
+                }
                 pointerStartRef.current = {
                   cardId: card.id,
+                  pointerId: e.pointerId,
                   x: e.clientX,
                   y: e.clientY,
-                  pointerType: e.pointerType,
+                  capturing: false,
                 }
               }}
               onPointerMove={(e) => {
                 const start = pointerStartRef.current
                 if (!start || start.cardId !== card.id || !action) return
-                if (start.y - e.clientY > 40) {
+                const dy = start.y - e.clientY
+                const dx = Math.abs(e.clientX - start.x)
+                if (!start.capturing && dy > 10 && dy > dx) {
+                  start.capturing = true
+                  try {
+                    e.currentTarget.setPointerCapture?.(e.pointerId)
+                  } catch {
+                    // ignore in environments without pointer capture
+                  }
+                }
+                if (start.capturing) {
+                  if (dy > 14) {
+                    swipedCardRef.current = card.id
+                  }
+                  setDragState({
+                    cardId: card.id,
+                    offsetY: -Math.min(Math.max(0, dy), 72),
+                  })
+                }
+                if (dy > 40) {
                   swipedCardRef.current = card.id
                   pointerStartRef.current = null
+                  setDragState(null)
+                  releaseCapture(e.currentTarget, e.pointerId)
                   onPlayAction(action)
                 }
+              }}
+              onPointerUp={(e) => {
+                const start = pointerStartRef.current
+                if (start && start.cardId === card.id) {
+                  if (start.capturing) {
+                    releaseCapture(e.currentTarget, e.pointerId)
+                  }
+                  pointerStartRef.current = null
+                }
+                setDragState((prev) => (prev?.cardId === card.id ? null : prev))
+              }}
+              onPointerCancel={(e) => {
+                const start = pointerStartRef.current
+                if (start && start.cardId === card.id) {
+                  if (start.capturing) {
+                    releaseCapture(e.currentTarget, e.pointerId)
+                  }
+                  pointerStartRef.current = null
+                }
+                if (swipedCardRef.current === card.id) {
+                  swipedCardRef.current = null
+                }
+                setDragState((prev) => (prev?.cardId === card.id ? null : prev))
               }}
               className="relative shrink-0"
             >

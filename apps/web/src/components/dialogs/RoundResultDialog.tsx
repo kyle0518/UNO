@@ -8,6 +8,7 @@ export interface RoundResultDialogProps {
   playerNames: string[]
   winnerSeat: number | null
   roundDeltas?: number[]
+  nextRoundPending?: boolean
   onNextRound: () => void
 }
 
@@ -18,6 +19,7 @@ export function RoundResultDialog({
   playerNames,
   winnerSeat,
   roundDeltas,
+  nextRoundPending = false,
   onNextRound,
 }: RoundResultDialogProps) {
   const { t } = useTranslation()
@@ -87,8 +89,9 @@ export function RoundResultDialog({
 
         <button
           type="button"
+          disabled={nextRoundPending}
           onClick={onNextRound}
-          className="min-h-11 w-full rounded-xl bg-btn-green px-4 py-3 text-base font-bold text-white shadow-lg transition hover:brightness-110 active:scale-95"
+          className="min-h-11 w-full rounded-xl bg-btn-green px-4 py-3 text-base font-bold text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
         >
           {t('game.nextRound')}
         </button>

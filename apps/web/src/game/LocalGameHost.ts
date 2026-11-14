@@ -78,7 +78,7 @@ export class LocalGameHost {
     this.config = params.config
     this.animSpeed = params.animSpeed ?? '1x'
     this.startedAt = this.now()
-    this.prngState = (params.seed ^ 0x9e37_79b9) >>> 0 || 1
+    this.prngState = Math.imul((params.seed ^ 0x9e37_79b9) >>> 0, 0x85eb_ca6b) >>> 0 || 1
 
     const firstHuman = params.seats.indexOf('human')
     this.humanSeat = firstHuman >= 0 ? firstHuman : null
@@ -141,7 +141,7 @@ export class LocalGameHost {
     this.clearStepTimers()
     try {
       const events = this.game.next_round()
-      this.afterGameStep(events)
+      this.afterGameStep(events, this.getRoundStartDelayMs(events))
     } catch (err) {
       this.emit({
         kind: 'error',
@@ -177,14 +177,14 @@ export class LocalGameHost {
     }
   }
 
-  private afterGameStep(events: Event[]): void {
+  private afterGameStep(events: Event[], extraDelayMs = 0): void {
     if (!this.game || this.disposed) return
     const filtered = this.factory.filterEvents(
       events,
       this.humanSeat ?? undefined,
     )
     const view = this.currentView()
-    this.refreshTurnDeadline(view)
+    this.refreshTurnDeadline(view, extraDelayMs)
     this.emit({
       kind: 'events',
       events: filtered,
@@ -201,7 +201,21 @@ export class LocalGameHost {
       return
     }
 
-    this.scheduleNext()
+    this.scheduleNext(extraDelayMs)
+  }
+
+  private getRoundStartDelayMs(events: Event[]): number {
+    const mult = animDurationMultiplier(this.animSpeed)
+    if (mult === 0) return 0
+    let base = 0
+    for (const ev of events) {
+      if (ev.type === 'round_started') {
+        base += ev.hand_sizes.reduce((sum, n) => sum + n, 0) * 60
+      } else if (ev.type === 'start_card_flipped') {
+        base += 200
+      }
+    }
+    return Math.round(base * mult)
   }
 
   private currentView(): PlayerView {
@@ -213,7 +227,7 @@ export class LocalGameHost {
       : this.game.view(0)
   }
 
-  private refreshTurnDeadline(view: PlayerView): void {
+  private refreshTurnDeadline(view: PlayerView, extraDelayMs = 0): void {
     if (
       !this.config ||
       this.config.turn_seconds <= 0 ||
@@ -227,12 +241,12 @@ export class LocalGameHost {
     const totalMs = this.config.turn_seconds * 1000
     this.activeTimer = {
       seat: view.decision_player,
-      deadline_ms: this.now() + totalMs,
+      deadline_ms: this.now() + totalMs + extraDelayMs,
       total_ms: totalMs,
     }
   }
 
-  private scheduleNext(): void {
+  private scheduleNext(extraDelayMs = 0): void {
     if (this.disposed || !this.game || this.game.is_over()) return
     const dp = this.game.decision_player()
     if (dp === undefined || dp === null) return
@@ -240,7 +254,11 @@ export class LocalGameHost {
     this.maybeScheduleBotCatchUno()
 
     if (this.bots.has(dp)) {
-      const budgetMs = Math.round(700 * animDurationMultiplier(this.animSpeed))
+      if (this.catchTimer !== null) {
+        return
+      }
+      const budgetMs =
+        extraDelayMs + Math.round(700 * animDurationMultiplier(this.animSpeed))
       this.botTimer = setTimeout(() => {
         this.botTimer = null
         this.runBotStep(dp)
@@ -276,7 +294,14 @@ export class LocalGameHost {
     const entry = this.bots.get(seat)
     if (!entry) return
     const botView = this.game.view(seat)
-    const action = entry.instance.act(botView)
+    const effectiveView =
+      entry.kind === 'random'
+        ? botView
+        : {
+            ...botView,
+            legal: botView.legal.filter((a) => a.type !== 'catch_uno'),
+          }
+    const action = entry.instance.act(effectiveView)
     this.applyInternal(seat, action)
   }
 
@@ -307,7 +332,7 @@ export class LocalGameHost {
       const delay =
         this.animSpeed === 'off'
           ? 0
-          : Math.round((400 + this.nextRand() * 1100) * animDurationMultiplier(this.animSpeed))
+          : Math.round((350 + this.nextRand() * 450) * animDurationMultiplier(this.animSpeed))
       this.catchTimer = setTimeout(() => {
         this.catchTimer = null
         if (this.disposed || !this.game || this.game.is_over()) return
@@ -316,6 +341,8 @@ export class LocalGameHost {
           .some((a) => a.type === 'catch_uno' && a.target === target)
         if (stillCan) {
           this.applyInternal(botSeat, { type: 'catch_uno', target })
+        } else {
+          this.scheduleNext()
         }
       }, delay)
       break
