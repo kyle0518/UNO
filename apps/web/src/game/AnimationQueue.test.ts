@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Event } from '@/generated/Event'
 import type { PlayerView } from '@/generated/PlayerView'
 import type { AnimSpeed } from '@/settings/useSettings'
-import { AnimationQueue, getEventDurationMs } from './AnimationQueue'
+import { AnimationQueue, applyEventToDisplayView, getEventDurationMs } from './AnimationQueue'
 
 function makeView(overrides?: Partial<PlayerView>): PlayerView {
   return {
@@ -159,5 +159,47 @@ describe('AnimationQueue', () => {
     expect(getEventDurationMs({ type: 'card_played', seat: 0, card: makeView().top_card, jump_in: false }, '0.5x')).toBe(700)
     expect(getEventDurationMs({ type: 'card_played', seat: 0, card: makeView().top_card, jump_in: false }, '2x')).toBe(175)
     expect(getEventDurationMs({ type: 'card_played', seat: 0, card: makeView().top_card, jump_in: false }, 'off')).toBe(0)
+  })
+  it('updates phase and clears stale legal actions across round transitions and steps', () => {
+    const roundOverView = makeView({
+      phase: 'round_over',
+      decision_player: null,
+      uno_window: 1,
+      drawn_card: 10,
+      legal: [{ type: 'play', card: 10 }],
+    })
+
+    const started = applyEventToDisplayView(roundOverView, {
+      type: 'round_started',
+      round: 2,
+      dealer: 1,
+      hand_sizes: [7, 7, 7, 7],
+    })
+    expect(started.phase).toBe('play')
+    expect(started.round).toBe(2)
+    expect(started.uno_window).toBeNull()
+    expect(started.drawn_card).toBeNull()
+    expect(started.legal).toEqual([])
+    expect(started.discard).toEqual([])
+    expect(started.my_hand).toEqual([])
+
+    const played = applyEventToDisplayView(makeView({ legal: [{ type: 'play', card: 10 }] }), {
+      type: 'card_played',
+      seat: 0,
+      card: makeView().my_hand[0]!,
+      jump_in: false,
+    })
+    expect(played.legal).toEqual([])
+
+    const ended = applyEventToDisplayView(makeView({ legal: [{ type: 'draw' }] }), {
+      type: 'round_ended',
+      winner: 0,
+      scores: [25, 0, 0, 0],
+      hand_points: [0, 10, 10, 5],
+      totals: [25, 0, 0, 0],
+    })
+    expect(ended.phase).toBe('round_over')
+    expect(ended.legal).toEqual([])
+    expect(ended.decision_player).toBeNull()
   })
 })

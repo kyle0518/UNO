@@ -141,4 +141,115 @@ describe('GameTable', () => {
     fireEvent.click(main!)
     expect(onSelectCard).toHaveBeenCalledWith(null)
   })
+  it('supports touch two-tap select-then-play and single-gesture swipe-up play', () => {
+    const onSelectCard = vi.fn()
+    const onSendAction = vi.fn()
+    const view = sampleView()
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={onSelectCard}
+          onSendAction={onSendAction}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+
+    const cardBtn = screen.getByRole('button', { name: /紅色 8|Red 8/i })
+    const cardWrap = cardBtn.closest('[data-card-id="10"]')!
+
+    // Touch tap 1: selects card
+    fireEvent.pointerDown(cardWrap, { pointerId: 1, pointerType: 'touch', clientX: 100, clientY: 200 })
+    fireEvent.pointerUp(cardWrap, { pointerId: 1, pointerType: 'touch', clientX: 100, clientY: 200 })
+    fireEvent.click(cardBtn)
+    expect(onSelectCard).toHaveBeenCalledWith(10)
+    expect(onSendAction).not.toHaveBeenCalled()
+
+    // Touch tap 2 (when selected): plays card
+    rerender(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={10}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={onSelectCard}
+          onSendAction={onSendAction}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    fireEvent.pointerDown(cardWrap, { pointerId: 2, pointerType: 'touch', clientX: 100, clientY: 200 })
+    fireEvent.pointerUp(cardWrap, { pointerId: 2, pointerType: 'touch', clientX: 100, clientY: 200 })
+    fireEvent.click(cardBtn)
+    expect(onSendAction).toHaveBeenCalledTimes(1)
+    expect(onSendAction).toHaveBeenCalledWith({ type: 'play', card: 10 })
+
+    // Touch swipe-up without prior selection: plays once and ignores trailing click
+    onSendAction.mockClear()
+    fireEvent.pointerDown(cardWrap, { pointerId: 3, pointerType: 'touch', clientX: 100, clientY: 200 })
+    fireEvent.pointerMove(cardWrap, { pointerId: 3, pointerType: 'touch', clientX: 102, clientY: 185 })
+    fireEvent.pointerMove(cardWrap, { pointerId: 3, pointerType: 'touch', clientX: 102, clientY: 150 })
+    fireEvent.pointerUp(cardWrap, { pointerId: 3, pointerType: 'touch', clientX: 102, clientY: 150 })
+    fireEvent.click(cardBtn)
+    expect(onSendAction).toHaveBeenCalledTimes(1)
+    expect(onSendAction).toHaveBeenCalledWith({ type: 'play', card: 10 })
+  })
+
+  it('disables Next Round button while nextRoundPending is true', () => {
+    const view = sampleView()
+    view.phase = 'round_over'
+    view.decision_player = null
+    view.legal = []
+    const onNextRound = vi.fn()
+
+    render(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          nextRoundPending={true}
+          onSelectCard={vi.fn()}
+          onSendAction={vi.fn()}
+          onNextRound={onNextRound}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+
+    const nextBtn = screen.getByRole('button', { name: /進入下一輪|Next Round/i })
+    expect(nextBtn).toBeDisabled()
+    fireEvent.click(nextBtn)
+    expect(onNextRound).not.toHaveBeenCalled()
+  })
 })

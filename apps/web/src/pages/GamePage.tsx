@@ -34,6 +34,7 @@ export function GamePage() {
   const flipping = useGameStore((s) => s.flipping)
   const confettiSeq = useGameStore((s) => s.confettiSeq)
   const animating = useGameStore((s) => s.animating)
+  const nextRoundPending = useGameStore((s) => s.nextRoundPending)
   const setSelectedCardId = useGameStore((s) => s.setSelectedCardId)
   const sendAction = useGameStore((s) => s.sendAction)
   const nextRound = useGameStore((s) => s.nextRound)
@@ -111,6 +112,7 @@ export function GamePage() {
         colorRipple={colorRipple}
         flipping={flipping}
         confettiSeq={confettiSeq}
+        nextRoundPending={nextRoundPending}
         onSelectCard={setSelectedCardId}
         onSendAction={sendAction}
         onNextRound={nextRound}
