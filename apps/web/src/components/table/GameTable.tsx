@@ -366,6 +366,7 @@ export function GameTable({
           playerNames={playerNames}
           winnerSeat={resolvedWinner}
           roundDeltas={resolvedDeltas}
+          targetScore={view.config.scoring.type === 'points' ? view.config.scoring.target : null}
           nextRoundPending={nextRoundPending}
           onNextRound={onNextRound}
         />
