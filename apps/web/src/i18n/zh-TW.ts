@@ -243,6 +243,7 @@ export const zhTW = {
   'game.noActiveMatch': '目前沒有進行中的單機對局。',
   'game.backToSolo': '前往單機設定',
   'game.swipeHint': '再點一次或上滑出牌',
+  'game.playableHint': '可出',
   'results.title': '對局結算',
   'results.winnerBanner': '冠軍：{name}',
   'results.rankLabel': '第 {rank} 名',

@@ -34,7 +34,7 @@ const SIZE_CLASSES: Record<CardSize, string> = {
 const STATE_CLASSES: Record<CardState, string> = {
   normal: '',
   playable:
-    'ring-2 ring-accent/85 shadow-[0_0_10px_var(--accent)]',
+    'ring-[3px] ring-accent shadow-[0_0_16px_var(--accent)]',
   selected:
     '-translate-y-2 ring-3 ring-accent shadow-[0_0_14px_var(--accent)]',
   disabled: 'cursor-not-allowed',
@@ -83,7 +83,7 @@ export function UnoCard({
 
   const content =
     state === 'disabled' ? (
-      <span className="block h-full w-full opacity-[0.88] brightness-[0.96]">
+      <span className="block h-full w-full opacity-[0.74] brightness-[0.90]">
         {contentInner}
       </span>
     ) : (

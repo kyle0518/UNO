@@ -93,6 +93,12 @@ describe('GameTable', () => {
     expect(screen.getAllByText('AI 2').length).toBeGreaterThan(0)
     expect(screen.getByRole('complementary', { name: /出牌方向|Turn order/i })).toBeInTheDocument()
 
+    // Legal cards have an exposed visual cue; illegal cards must not.
+    const playableHint = screen.getByTestId('playable-indicator')
+    expect(playableHint).toHaveTextContent(/可出|PLAY/)
+    expect(playableHint.closest('[data-card-id]')).toHaveAttribute('data-card-id', '10')
+    expect(screen.getByTestId('player-hand').querySelectorAll('[data-playable="false"] [data-testid="playable-indicator"]')).toHaveLength(0)
+
     fireEvent.click(screen.getByRole('button', { name: /紅色 8|Red 8/i }))
     expect(onSendAction).toHaveBeenCalledWith({ type: 'play', card: 10 })
 

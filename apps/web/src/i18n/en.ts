@@ -245,6 +245,7 @@ export const en = {
   'game.noActiveMatch': 'No active solo match found.',
   'game.backToSolo': 'Go to Solo Setup',
   'game.swipeHint': 'Tap again or swipe up to play',
+  'game.playableHint': 'PLAY',
   'results.title': 'Match Results',
   'results.winnerBanner': 'Winner: {name}',
   'results.rankLabel': '#{rank}',

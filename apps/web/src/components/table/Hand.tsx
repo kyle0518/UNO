@@ -6,6 +6,7 @@ import type { Action } from '@/generated/Action'
 import type { Card } from '@/generated/Card'
 import type { Side } from '@/generated/Side'
 import { useSettings } from '@/settings/useSettings'
+import { useTranslation } from '@/i18n'
 
 export interface HandProps {
   cards: Card[]
@@ -32,6 +33,7 @@ export function Hand({
   onDraw,
   onCallUno,
 }: HandProps) {
+  const { t } = useTranslation()
   const handSort = useSettings((s) => s.handSort)
   const animSpeed = useSettings((s) => s.animSpeed)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -354,6 +356,15 @@ export function Hand({
                 }
                 onClick={handleTrigger}
               />
+              {isPlayable && (
+                <span
+                  data-testid="playable-indicator"
+                  className="uno-hand-playable-flag"
+                  aria-hidden="true"
+                >
+                  {t('game.playableHint')}
+                </span>
+              )}
             </motion.div>
           )
         })}

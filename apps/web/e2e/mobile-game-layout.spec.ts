@@ -102,10 +102,24 @@ async function checkPhoneGame(
       expect(delta, `${label}: uneven resting card heights`).toBeLessThanOrEqual(3)
     }
 
-    // An overlapping card is intentionally actionable by its exposed left
-    // strip, not by its covered center. Tap the visible strip like a person.
+    // The playable cue must sit on the exposed edge of the card and remain
+    // visible even when cards overlap. Non-playable cards get no false cue.
+    const blocked = page.locator('[data-testid="player-hand"] [data-playable="false"]').first()
+    if (await blocked.count()) {
+      await expect(blocked.getByTestId('playable-indicator')).toHaveCount(0)
+    }
+
+    // An overlapping card is actionable by its exposed left strip. The new
+    // cue is non-interactive, so it cannot steal touch events from the card.
     const playable = page.locator('[data-testid="player-hand"] [data-playable="true"]').first()
     if (await playable.count()) {
+      const cue = playable.getByTestId('playable-indicator')
+      await expect(cue).toBeVisible()
+      await expect(cue).toHaveText(/可出|PLAY/)
+      const cueBounds = await cue.boundingBox()
+      expect(cueBounds, `${label}: playable cue has no layout`).not.toBeNull()
+      expect(cueBounds!.width, `${label}: cue too small to recognize`).toBeGreaterThanOrEqual(25)
+
       await playable.locator('button').tap({
         position: { x: 12, y: 28 },
         timeout: 5_000,
