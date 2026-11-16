@@ -13,8 +13,9 @@ import type { PlayerView } from '@/generated/PlayerView'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useTranslation } from '@/i18n'
 import { CenterPile } from './CenterPile'
-import { DirectionRing } from './DirectionRing'
+import { DirectionRing, getNextActiveSeat } from './DirectionRing'
 import { Hand } from './Hand'
+import { OpponentAvatar } from './OpponentAvatar'
 import { OpponentStrip } from './OpponentStrip'
 import { StatusBar } from './StatusBar'
 import { TopBar } from './TopBar'
@@ -77,6 +78,7 @@ export function GameTable({
   const mePlayer = view.players.find((p) => p.seat === view.me) ?? null
   const meEliminated = mePlayer?.eliminated ?? false
   const myTeam = mePlayer?.team ?? null
+  const nextSeat = getNextActiveSeat(view.players, view.current, view.direction)
 
   const opponents = useMemo(() => {
     const items = []
@@ -176,64 +178,85 @@ export function GameTable({
             }
           }}
           data-testid="game-arena"
-          className="uno-arena uno-arena-v3 relative min-h-0 flex-1 overflow-hidden"
+          className="uno-arena uno-arena-v4 relative min-h-0 flex-1 overflow-hidden"
         >
-          <div className="uno-arena-layout">
-            <section className="uno-play-canvas" aria-label={t('game.table')}>
-              <header className="uno-play-canvas-header">
-                <div className="uno-play-canvas-heading">
-                  <span className="uno-play-canvas-kicker">{t('game.table')}</span>
-                  <span className="uno-play-canvas-round">{t('game.roundLabel', { round: view.round })}</span>
-                </div>
-                <div className="uno-play-canvas-player-count">
-                  <span className="uno-live-dot" aria-hidden="true" />
-                  {view.players.filter((p) => !p.eliminated).length} / {n}
-                </div>
-              </header>
+          <div className="uno-table-scene">
+            <div className="uno-table-felt" aria-hidden="true">
+              <div className="uno-table-inset" />
+              <div className="uno-arena-felt" />
+            </div>
 
-              <div className="uno-play-canvas-seats">
+            {opponents.length > (isLandscapeDesktop ? 5 : 3) ? (
+              <div className="uno-seats-rail">
                 <OpponentStrip
                   opponents={opponents}
                   currentSeat={view.current}
+                  nextSeat={nextSeat}
                   skippedSeat={skippedSeat}
                   catchableSeats={catchableSeats}
                   targetableSeats={targetableSeats}
-                  compact={isShortViewport || n > 5}
+                  compact
                   onCatch={(target) => onSendAction({ type: 'catch_uno', target })}
                   onSelectTarget={(target) => onSendAction({ type: 'choose_target', target })}
                 />
               </div>
-
-              <div className="uno-play-field">
-                <div className="uno-play-field-orbit" aria-hidden="true" />
-                <div className="uno-play-field-orbit uno-play-field-orbit--outer" aria-hidden="true" />
-                <div className="uno-play-field-caption">{t('game.playZone')}</div>
-                <div className="uno-arena-pile relative z-10">
-                  <CenterPile
-                    topCard={view.top_card}
-                    side={view.side}
-                    activeColor={view.active_color}
-                    drawPileSize={view.draw_pile_size}
-                    drawPileTopBack={view.draw_pile_top_back}
-                    pendingDraw={view.pending_draw}
-                    canDraw={canDraw}
-                    colorRipple={colorRipple}
-                    flipping={flipping}
-                    large={isLandscapeDesktop}
-                    size={tableCardSize}
-                    onDraw={() => onSendAction({ type: 'draw' })}
-                  />
-                </div>
+            ) : (
+              <div className="uno-table-seats" aria-label={t('game.opponents')}>
+                {opponents.map(({ player, name }, idx) => {
+                  const fraction = (idx + 1) / (opponents.length + 1)
+                  // Occupied seats follow a curved arc around the far half of the table.
+                  const leftPct = 7 + fraction * 86
+                  const topPct = 13 + Math.abs(fraction - 0.5) * 34
+                  return (
+                    <div
+                      className="uno-table-seat"
+                      key={player.seat}
+                      style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+                    >
+                      <OpponentAvatar
+                        player={player}
+                        name={name}
+                        compact={opponents.length > 3 || isShortViewport}
+                        isCurrent={view.current === player.seat}
+                        isNext={nextSeat === player.seat}
+                        isSkipped={skippedSeat === player.seat}
+                        canCatch={catchableSeats.has(player.seat)}
+                        isTargetable={targetableSeats.has(player.seat)}
+                        onCatch={(target) => onSendAction({ type: 'catch_uno', target })}
+                        onSelectTarget={(target) => onSendAction({ type: 'choose_target', target })}
+                      />
+                    </div>
+                  )
+                })}
               </div>
-            </section>
+            )}
 
-            <DirectionRing
-              direction={view.direction}
-              currentSeat={view.current}
-              mySeat={mySeat}
-              players={view.players}
-              playerNames={playerNames}
-            />
+            <div className="uno-table-center">
+              <div className="uno-table-mark" aria-hidden="true" />
+              <div className="uno-arena-pile relative z-10">
+                <CenterPile
+                  topCard={view.top_card}
+                  side={view.side}
+                  activeColor={view.active_color}
+                  drawPileSize={view.draw_pile_size}
+                  drawPileTopBack={view.draw_pile_top_back}
+                  pendingDraw={view.pending_draw}
+                  canDraw={canDraw}
+                  colorRipple={colorRipple}
+                  flipping={flipping}
+                  large={isLandscapeDesktop}
+                  size={tableCardSize}
+                  onDraw={() => onSendAction({ type: 'draw' })}
+                />
+              </div>
+              <DirectionRing
+                direction={view.direction}
+                currentSeat={view.current}
+                mySeat={mySeat}
+                players={view.players}
+                playerNames={playerNames}
+              />
+            </div>
           </div>
 
           <AnimatePresence>

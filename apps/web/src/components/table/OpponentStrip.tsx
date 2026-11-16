@@ -10,6 +10,7 @@ export interface OpponentItem {
 export interface OpponentStripProps {
   opponents: OpponentItem[]
   currentSeat: number
+  nextSeat?: number | null
   skippedSeat: number | null
   catchableSeats: Set<number>
   targetableSeats: Set<number>
@@ -21,6 +22,7 @@ export interface OpponentStripProps {
 export function OpponentStrip({
   opponents,
   currentSeat,
+  nextSeat = null,
   skippedSeat,
   catchableSeats,
   targetableSeats,
@@ -44,6 +46,7 @@ export function OpponentStrip({
           name={name}
           compact={compact}
           isCurrent={currentSeat === player.seat}
+          isNext={nextSeat === player.seat}
           isSkipped={skippedSeat === player.seat}
           canCatch={catchableSeats.has(player.seat)}
           isTargetable={targetableSeats.has(player.seat)}

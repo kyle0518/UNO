@@ -52,6 +52,9 @@ jobs:
           GITHUB_PAGES: 'true'
         run: pnpm -C apps/web build
 
+      - name: Run frontend regression tests
+        run: pnpm -C apps/web test
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

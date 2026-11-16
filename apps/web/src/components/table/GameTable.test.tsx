@@ -134,7 +134,7 @@ describe('GameTable', () => {
     expect(guide).toHaveAttribute('data-direction', 'clockwise')
     expect(guide.textContent).toMatch(/順時針|Clockwise/)
     expect(guide.textContent).toMatch(/AI 1/)
-    expect(guide.querySelectorAll('.uno-route-item')[1]?.textContent).toContain('AI 1')
+    expect(guide).toHaveAttribute('data-next-seat', '1')
 
     view.direction = -1
     rerender(
@@ -162,7 +162,7 @@ describe('GameTable', () => {
     expect(guide).toHaveAttribute('data-direction', 'counter-clockwise')
     expect(guide.textContent).toMatch(/逆時針|Counter-clockwise/)
     expect(guide.textContent).toMatch(/AI 3/)
-    expect(guide.querySelectorAll('.uno-route-item')[1]?.textContent).toContain('AI 3')
+    expect(guide).toHaveAttribute('data-next-seat', '3')
   })
 
   it('deselects card when clicking empty table background and shows team / eliminated notices', () => {
@@ -201,6 +201,9 @@ describe('GameTable', () => {
     expect(screen.getByTestId('game-arena')).toBeInTheDocument()
     expect(screen.getByTestId('player-dock')).toBeInTheDocument()
     expect(container.querySelector('.uno-arena-felt')).not.toBeNull()
+    expect(container.querySelector('.uno-table-felt')).not.toBeNull()
+    expect(container.querySelectorAll('.uno-table-seat')).toHaveLength(3)
+    expect(container.querySelector('.uno-route-panel')).toBeNull()
     fireEvent.click(main!)
     expect(onSelectCard).toHaveBeenCalledWith(null)
   })
