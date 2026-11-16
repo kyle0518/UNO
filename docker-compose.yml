@@ -1,0 +1,10 @@
+services:
+  uno:
+    build: .
+    image: uno-server:latest
+    container_name: uno-server
+    # host 網路：讓伺服器正確偵測區網 IPv4，手機掃 QR 才能加入（見 docs/PROGRESS T11.5）
+    network_mode: host
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

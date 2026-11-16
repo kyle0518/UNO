@@ -56,41 +56,73 @@
 ## P6 伺服器與帳號
 - [x] T6.1 伺服器骨架 + QR (2026-11-13: 實作 uno-server 的 clap CLI、Axum `/api/server-info`、`/models` 靜態目錄與 `ServeDir`+`ServeFile` SPA fallback、區網 IPv4 偵測排除 `docker`/`br-`/`veth` 並輸出 Unicode QR 與 `tracing_subscriber` 日誌；`uno-server` 9 項測試、`curl` 實測與 `./scripts/check.sh` 全過)
 - [x] T6.2 資料庫 (2026-11-13: 實作 rusqlite bundled 遷移、WAL 模式、外鍵設定；完成 users/sessions、matches/match_players/daily_scores 與 ratings/rating_history Repository；支援 tokio spawn_blocking 非同步與個人/團隊/Solo Elo 運算；cargo test -p uno-server db 10 項測試與 ./scripts/check.sh 全過)
-- [ ] T6.3 帳號 API
-- [ ] T6.4 前端帳號頁
+- [x] T6.3 帳號 API (2026-11-16: 實作 /api/guest、/register、/login、/logout、/me；審查修正：PublicUser 對齊規格 UserPublic{name}、Argon2 改 spawn_blocking、認證端點限流 10/分鐘每 key、username 大小寫正規化、session token 只存 Blake2b 雜湊、每小時清理過期 session、Internal 錯誤不外洩；沙箱環境故障無法執行 cargo test，待 ./scripts/check.sh 驗證)
+- [x] T6.4 前端帳號頁 (2026-11-16: 實作 Login/Register 頁與 useAuth；審查修正後前端 ApiUser{name} 與後端回應一致，useAuth.test.tsx mock 即真實形狀)
 
 ## P7 多人連線
-- [ ] T7.1 uno-protocol
-- [ ] T7.2 房間 actor
-- [ ] T7.3 WebSocket 端點
-- [ ] T7.4 RemoteGameClient 與大廳
-- [ ] T7.5 聊天、表情、觀戰、重連
+- [x] T7.1 uno-protocol (2026-11-16: 依 INTERFACES §7.1/§7.2 實作 ClientMsg/ServerMsg/RoomInfo/SeatInfo/Occupant/RoomStatus/TurnTimer/UserPublic/EloChange/ErrorCode 全型別與 TS export，i64/u64 欄位以 #[ts(type="number")] 對齊 JS number；serde round-trip 測試涵蓋每種訊息各一例共 15 項通過；gen-types 產出 10 個新 TS 檔；本機補裝 Rust 1.100.0/wasm-pack 後 ./scripts/check.sh 全過，含先前 T6.3 待驗證的 uno-server 測試與 web 18 檔 57 項)
+- [x] T7.2 房間 actor (2026-11-16: 實作 rooms/{mod,registry,room,bots,timers}.rs：RoomRegistry 以 Mutex<HashMap> 管理、房號 6 碼排除 0O1IL；Room actor 單一 task 處理 Join/Leave/Disconnect 與全部 ClientMsg，座位/準備/房主權限/開始條件驗證，依座位 filter_events 廣播與快照；bot 排程 600–1200ms 帶 epoch+turn 防過期、CatchUno 機率 0/30/70%、回合與總時限計時、RoundOver 8 秒自動下一輪、斷線 1 秒 Heuristic 代打與 60 秒永久轉 bot；GameOver 寫入 matches/match_players 並以 apply_match_ratings 結算 Elo 後廣播 MatchSaved，AppState 已持有 RoomRegistry；rooms 測試 5 項通過，含 2 真人+2 bot 完整對局打完且 DB 有紀錄；./scripts/check.sh 全過)
+- [x] T7.3 WebSocket 端點 (2026-11-16: 實作 src/ws.rs 的 /ws 升級端點：第一則 Hello 5 秒逾時、protocol=1 與 Bearer token 驗證後回 Welcome；CreateRoom/JoinRoom 經 RoomRegistry 路由，其餘訊息轉發 Room actor；每連線每秒 10 則限流回 RateLimited；連線關閉通知房間 Disconnect 保留座位代打；tokio-tungstenite 整合測試 2 項通過（雙客戶端建房/加入/開始皆收到 GameSnapshot、壞 token 回 Unauthorized）；./scripts/check.sh 全過。待後續：所有真人離開 5 分鐘刪房的清理計時尚未實作)
+- [x] T7.4 RemoteGameClient 與大廳 (2026-11-16: 實作 src/net/socket.ts 單例連線（Hello 驗證、自動重連 1/2/4…10s、重連自動回房、訊息分派）、RemoteGameClient 將 ServerMsg 映射為 GameUpdate（單元測試 2 項）、remoteSession 待進房代碼；新增 CreateRoomPage（模式/人數/公開切換、WASM preset 建房）、JoinRoomPage（6 碼大字輸入）、RoomPage（座位網格、加 bot/移除、房規摘要、QR=join_url、複製/Web Share、聊天、準備/開始）；/r/:code 未登入先訪客暱稱再自動加入；GamePage 依 pending remote 改用 RemoteGameClient 渲染同一 GameTable；雙瀏覽器 E2E（桌機建房 + iPhone 13 掃碼式加入、開始、雙方見牌桌且 B 能出牌）通過；check.sh 全過)
+- [x] T7.5 聊天、表情、觀戰、重連 (2026-11-16: 遊戲內 ChatDrawer 底部抽屜（聊天＋表情快捷列）、EmoteBubble 最新表情泡泡顯示 2 秒、觀戰時顯示「觀戰中」標籤（view.me 為 null）、斷線時頂部「重新連線中…」橫幅；socket 重連後自動重新 JoinRoom 取快照；修正 GamePage 進入遊戲桌一律重新 join 以取得最新快照的 bug；E2E 新增離線 3 秒重連後能繼續出牌、遊戲內聊天對方可見 2 項，連同 T7.4 共 3 項通過；check.sh 全過)
 
 ## P8 戰績、重播、每日
-- [ ] T8.1 戰績 API 與頁面
-- [ ] T8.2 單機戰績上傳
-- [ ] T8.3 重播檢視器 (2026-11-13 單機版先行完成：實作 `/replay/:id` 本機互動重播檢視器、`ReplayTimeline` WASM 逐步重建、播放/暫停/上一步/下一步/時間軸拖曳、0.5x–4x 倍速、上帝視角切換與 `ResultsPage` 近期重播清單連結；線上 `/api/replays/:id` 串接待 P8 實作)
-- [ ] T8.4 每日挑戰
+- [x] T8.1 戰績 API 與頁面 (2026-11-16: 新增 api/stats.rs 端點 GET /api/users/:id/stats（總覽＋by_mode＋elo_history）、/api/users/:id/matches、/api/matches/:id/replay、/api/leaderboard、/api/rooms，整合測試驗證 Elo 1216/1184 與名次；前端 StatsPage 總覽卡片、各模式 Elo 與自繪 SVG 折線、最近對局連至重播，LeaderboardPage 模式分頁；check.sh 全過)
+- [x] T8.2 單機戰績上傳 (2026-11-16: POST /api/matches/solo 以 Replay::replay() 伺服器重跑驗證、seat 0 須為本人，入庫 is_solo 且不計 Elo（計 games/wins）；整合測試：合法重播 200 且 Elo 維持 1200、竄改 Play{card:9999} 回 400；前端單機結束自動上傳、失敗靜默)
+- [x] T8.3 重播檢視器 (2026-11-13 單機版先行完成：實作 `/replay/:id` 本機互動重播檢視器、`ReplayTimeline` WASM 逐步重建、播放/暫停/上一步/下一步/時間軸拖曳、0.5x–4x 倍速、上帝視角切換與 `ResultsPage` 近期重播清單連結；2026-11-16 補線上串接：ReplayPage 本地無紀錄且 id 為數字時改向 GET /api/matches/:id/replay 取得伺服器重播並以同一檢視器播放，StatsPage 最近對局即連至此)
+- [x] T8.4 每日挑戰 (2026-11-16: GET /api/daily 回傳 UTC 日期/種子（與前端 getDailySeed 同公式，civil 演算法測試含閏日）/daily preset/my_best；POST /api/daily/submit 驗證 seed 與 mode_id 符合當日、重播重跑驗證後入庫並以 record_daily_score 計榜，整合測試第二次提交 counted=false；前端 DailyPage 顯示今日資訊與最佳分數、以固定 seed + 3 Hard bot 開局，結算頁自動提交並顯示分數/排名/是否計入；排行榜頁含 daily 分頁)
 
-## P9 Python RL 環境
-- [ ] T9.1 uno-py
-- [ ] T9.2 Gymnasium
-- [ ] T9.3 PettingZoo
-- [ ] T9.4 SB3 VecEnv 與效能（記錄 steps/s）
-- [ ] T9.5 RLCard 相容層
+## P9 Python RL 環境（已移除）
+> 2026-11-16 依使用者指示移除：本專案 AI 以搜尋演算為主（uno-bots 的 Random／Heuristic／Hard ISMCTS），
+> 不做神經網路訓練，故 Python RL 環境整階段不施作。本次曾動工的 `python/` 與 uno-py 綁定已全數清除、uno-py 還原為 stub。
+- [-] T9.1 uno-py（移除：AI 以搜尋演算為主）
+- [-] T9.2 Gymnasium（移除）
+- [-] T9.3 PettingZoo（移除）
+- [-] T9.4 SB3 VecEnv 與效能（移除）
+- [-] T9.5 RLCard 相容層（移除）
 
-## P10 訓練與模型上線
-- [ ] T10.1 MaskablePPO
-- [ ] T10.2 自我對戰 PPO
-- [ ] T10.3 DQN + 評估
-- [ ] T10.4 ONNX 匯出
-- [ ] T10.5 模型上線
-- [ ] T10.6 AI 實驗室
+## P10 訓練與模型上線（已移除）
+> 2026-11-16 依使用者指示移除：本階段的訓練與模型產出可能需要 GPU，本機不執行。
+> 連帶移除相依的模型上線與 AI 實驗室（其驗收需要訓練好的模型）。以下保留紀錄，不再施作：
+- [-] T10.1 MaskablePPO（移除：可能需要 GPU）
+- [-] T10.2 自我對戰 PPO（移除：可能需要 GPU）
+- [-] T10.3 DQN + 評估（移除：可能需要 GPU）
+- [-] T10.4 ONNX 匯出（移除：相依於訓練產出）
+- [-] T10.5 模型上線（移除：相依於訓練好的模型）
+- [-] T10.6 AI 實驗室（移除：相依於模型上線）
 
 ## P11 打磨與發佈
 - [x] T11.1 PWA / GitHub Pages (2026-11-13: 完成 GitHub Pages 純單機版部署與 PWA：支援動態 base path、BrowserRouter basename、Howler 音效路徑、.nojekyll 與 404.html SPA fallback、.github/workflows/deploy.yml 自動建置 WASM 與發佈工作流、scripts/build-pages.sh；VitePWA precache 136 entries；check.sh 全過)
 - [x] T11.2 無障礙 (2026-11-13: 修正 ColorPicker 數字徽章對比 `bg-black/75`、TargetPicker `z-40`、禁用手牌不透視基底防重疊透字、橫向抽牌堆防裁切、桌面方向環放大、`CardBack` 三款主題、鍵盤方向鍵焦點指示與點擊桌面取消選牌；Vitest 17 檔 44 項與 Playwright 含 `@axe-core/playwright` 於 `/solo`/`/settings`/`/rules`/`/game`/`/results`/`/replay/local` 0 嚴重違規通過)
 - [x] T11.3 i18n (2026-11-13: 移除 `OpponentStrip`、`OpponentAvatar`、`ResultsPage` 殘留硬編碼字串，補齊 Flip 質疑變體、團隊/淘汰狀態與重播檢視器全部 `zh-TW`/`en` 鍵值，`i18n.test.ts` 同鍵與參數檢查及 `check.sh` 全過)
 - [x] T11.4 規則說明與教學 (2026-11-13: 實作 TutorialOverlay 首次進入 /game 顯示 4 步可跳過教學並記憶於 localStorage，搭配 RulesPage 模式圖文說明；TutorialOverlay.test.tsx、RulesPage.test.tsx 與 Playwright E2E 全過)
-- [ ] T11.5 一鍵啟動 / Docker
-- [ ] T11.6 最終驗收
+- [x] T11.5 一鍵啟動 / Docker (2026-11-16: 新增 scripts/start.sh（build-wasm → gen-types → web build → cargo run -p uno-server --release，參數轉傳）並實測啟動成功；多階段 Dockerfile（rust:trixie 建 WASM＋server、node 建 web、debian:trixie-slim 執行；wasm-bindgen 需 GLIBC 2.38 故不用 bookworm）與 docker-compose.yml（network_mode: host 以利區網 IP/QR 正確、volume ./data）；docker build 成功且容器實跑 /api/server-info 與首頁 200)
+- [x] T11.6 最終驗收 (2026-11-16: 逐條核對 SPEC §2.1 F1–F26 與 N1–N6，結果如下；全 E2E 13/13 通過（smoke/無障礙、單機截圖與完整對局、連線建房/重連/聊天），check.sh 全過，README 已更新功能截圖與手機/Docker 說明。
+  - F1 經典規則：uno-core 引擎＋RULES 編號測試（P1）通過。
+  - F2 房規選項：疊加/7-0/搶出/draw_to_match/force_play/+4 質疑/UNO 懲罰（P2 測試）通過。
+  - F3 八模式＋自訂：preset 與全模式壓力測試（T2.6）通過。
+  - F4 2–10 人：config 驗證與 random_play 2–10 人 proptest 通過。
+  - F5 單局/累積 500 分：scoring 測試通過。
+  - F6 單機離線 vs AI：WASM 本地對局 E2E 完整打完一局通過。
+  - F7 區網多人：房間/6 碼/QR/真人+AI 混桌，雙瀏覽器 E2E 通過。
+  - F8 斷線重連：座位保留、AI 代打、60 秒轉 bot，rooms 測試＋offline E2E 通過。
+  - F9 觀戰：spectator view 與「觀戰中」標籤（T7.5）完成。
+  - F10 聊天與表情：ChatDrawer/EmoteBubble，聊天 E2E 對方可見通過。
+  - F11 AI 難度：Random/Heuristic/Hard(ISMCTS) 已實作並有勝率紀錄（T3.3）；「研究型 ONNX」隨 P10 移除（AI 以搜尋演算為主）。
+  - F12 註冊/登入/訪客：帳號 API＋前端頁（P6）通過。
+  - F13 個人戰績：/stats 總場數/勝率/各模式 Elo/最近對局看重播（T8.1）完成。
+  - F14 本機排行榜：/leaderboard 各模式＋每日分頁（T8.1/T8.4）完成。
+  - F15 Python uno_engine/uno_rl：隨 P9 移除（AI 以搜尋演算為主，不做神經網路訓練）。
+  - F16 可重現：同 seed 決定性由 state_hash 測試（T1.10）於引擎/瀏覽器/伺服器共用 uno-core 保證；Python 部分隨 P9 移除。
+  - F17 向量化環境：隨 P9 移除。
+  - F18 訓練範例（PPO/DQN）：隨 P10 移除（可能需要 GPU）。
+  - F19 ONNX 匯出上線：隨 P10 移除。
+  - F20 AI 實驗室：隨 P10 移除。
+  - F21 重播通用與檢視器：Replay 格式於網頁/伺服器共用（線上重播 T8.3）；Python 部分隨 P9 移除。
+  - F22 QR：伺服器啟動橫幅與房間 QR（T6.1/T7.4）完成。
+  - F23 直向主版面＋橫向可用、點擊 ≥44px：截圖 E2E 與 UI 規格通過。
+  - F24 觸控選牌/出牌/上滑與震動：GameTable 手勢與 haptics（P5）完成。
+  - F25 PWA：manifest/離線單機（T11.1）完成；HTTPS 為選用未啟用（HTTP 模式可正常遊玩，PROGRESS T11.1 已述）。
+  - F26 動畫可調速/關閉與 prefers-reduced-motion：設定與 MotionConfig（P5）完成。
+  - N1 三套主題設計系統（T4.2）完成。N2 效能：實測 JS+CSS gzip 254,970 B（≤400 KB）、WASM gzip 231,261 B（≤600 KB）達標。N3 安全：伺服器權威＋事件過濾不洩漏手牌（view/filter 測試）、argon2、輸入驗證通過。N4 測試：引擎分支/property/E2E 覆蓋（check.sh＋Playwright 13 項）通過。N5 i18n zh-TW/en 同鍵測試通過。N6 無障礙：鍵盤操作、色盲符號、axe 0 嚴重違規（T11.2）通過。
+  - 已知保留事項：所有真人離開 5 分鐘刪房的清理計時未實作（T7.3 筆記）；GitHub Pages 為純單機版，連線功能需自架 uno-server。)
