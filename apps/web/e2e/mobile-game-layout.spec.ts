@@ -44,8 +44,10 @@ async function checkPhoneGame(
     mkdirSync(captures, { recursive: true })
     await page.screenshot({ path: path.join(captures, `${label}.png`) })
 
-    const metrics = await page.evaluate(() => {
-      const bounds = (selector: string) => {
+    // tsconfig for Playwright is Node-only (no DOM lib); browser code is a
+    // string evaluated in Chromium, with the result typed on the Node side.
+    const metrics = await page.evaluate(`(() => {
+      const bounds = (selector) => {
         const element = document.querySelector(selector)
         if (!element) return null
         const rect = element.getBoundingClientRect()
@@ -67,7 +69,18 @@ async function checkPhoneGame(
         draw: bounds('[data-testid="draw-pile"]'),
         cardTops: cards,
       }
-    })
+    })()`) as {
+      width: number
+      height: number
+      scrollWidth: number
+      scrollHeight: number
+      arena: { height: number } | null
+      dock: { bottom: number } | null
+      hand: { height: number } | null
+      uno: { x: number; width: number; bottom: number } | null
+      draw: { width: number; height: number } | null
+      cardTops: number[]
+    }
 
     expect(metrics.scrollWidth, `${label}: document has horizontal overflow`).toBeLessThanOrEqual(width + 1)
     expect(metrics.scrollHeight, `${label}: document has vertical overflow`).toBeLessThanOrEqual(height + 1)
