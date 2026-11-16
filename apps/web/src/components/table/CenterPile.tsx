@@ -55,12 +55,12 @@ export function CenterPile({
       animate={flipping && useAnim ? { rotateY: [0, 90, 0] } : { rotateY: 0 }}
       transition={{ duration: flipSec || 0.01 }}
       className={[
-        'relative z-10 flex flex-col items-center',
+        'uno-center-pile relative z-10 flex flex-col items-center',
         cardSize === 'sm' ? 'gap-1' : 'gap-2.5',
       ].join(' ')}
     >
-      <div className="flex items-center gap-5 sm:gap-8">
-        <div className="relative flex flex-col items-center gap-1">
+      <div className="uno-pile-grid flex items-start gap-6 sm:gap-12">
+        <div className="uno-pile-stack relative flex flex-col items-center gap-2">
           <button
             type="button"
             data-testid="draw-pile"
@@ -69,8 +69,8 @@ export function CenterPile({
             className={[
               'relative rounded-[14%] p-0.5 transition focus-visible:outline-none',
               canDraw
-                ? 'cursor-pointer ring-3 ring-accent shadow-[0_0_18px_var(--accent)] hover:scale-105 active:scale-95'
-                : 'cursor-default opacity-80',
+                ? 'uno-draw-deck cursor-pointer hover:-translate-y-1 active:scale-95'
+                : 'uno-draw-deck cursor-default opacity-85',
             ].join(' ')}
           >
             <span className="sr-only">
@@ -85,14 +85,14 @@ export function CenterPile({
               />
             </span>
           </button>
-          <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-bold text-text-primary tabular-nums">
-            {drawPileSize}
+          <span className="uno-pile-label max-w-36 truncate rounded-full px-3 py-1 text-center text-xs font-semibold text-text-muted">
+            {t('game.drawPile', { count: drawPileSize })}
           </span>
         </div>
 
-        <div className="relative flex flex-col items-center gap-1">
+        <div className="uno-pile-stack relative flex flex-col items-center gap-2">
           <div
-            className="pointer-events-none absolute -inset-4 rounded-3xl opacity-55 blur-xl transition-colors duration-300"
+            className="pointer-events-none absolute -inset-4 rounded-3xl opacity-20 blur-2xl transition-colors duration-300"
             style={{ backgroundColor: glowColor }}
             aria-hidden="true"
           />
@@ -117,13 +117,13 @@ export function CenterPile({
             transition={{ duration: 0.35 * animDurationMultiplier(animSpeed) }}
             role="group"
             aria-label={t('game.discardPile')}
-            className="relative"
+            className="uno-discard-card relative"
           >
             <UnoCard face={topFace} back={topBack} size={cardSize} />
           </motion.div>
 
           {effectiveColor && (
-            <div className="relative z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-0.5 text-xs font-bold text-white shadow">
+            <div className="uno-pile-label relative z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white">
               <span
                 className="inline-block h-3 w-3 rounded-full ring-1 ring-white/50"
                 style={{ backgroundColor: glowColor }}
@@ -135,13 +135,18 @@ export function CenterPile({
               <span>{t(`color.${effectiveColor}` as TranslationKey)}</span>
             </div>
           )}
+          {!effectiveColor && (
+            <span className="uno-pile-label rounded-full px-3 py-1 text-xs font-semibold text-text-muted">
+              {t('game.discardPile')}
+            </span>
+          )}
         </div>
       </div>
 
       {pendingDraw > 0 && (
         <div
           data-testid="pending-draw-badge"
-          className="animate-bounce rounded-full bg-uno-red px-4 py-1 text-sm font-black text-white shadow-lg ring-2 ring-white/50"
+          className="uno-penalty-badge rounded-full px-4 py-1.5 text-sm font-black text-white shadow-lg"
         >
           {t('game.pendingDraw', { count: pendingDraw })}
         </div>

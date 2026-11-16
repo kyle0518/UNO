@@ -169,6 +169,9 @@ export function Hand({
     n <= 1 ? cardWidth : scrollable ? minStep : Math.min(maxStep, rawStep)
   const overlapMargin = step - cardWidth
   const useAnim = animSpeed !== 'off'
+  // Fan only when the complete hand fits. Horizontal scrolling stays flat and usable.
+  const fanAmount = compact ? 7 : 9
+  const fanDenom = Math.max(1, (n - 1) / 2)
 
   return (
     <div
@@ -180,8 +183,8 @@ export function Hand({
         }
       }}
       className={[
-        'relative flex w-full shrink-0 overflow-x-auto px-3 select-none',
-        resolvedSize === 'sm' ? 'pb-1 pt-1' : 'pb-3 pt-7',
+        'uno-hand-rail relative flex w-full shrink-0 overflow-x-auto px-2 select-none sm:px-4',
+        resolvedSize === 'sm' ? 'pb-2 pt-3' : 'pb-4 pt-9',
       ].join(' ')}
       style={{
         paddingBottom:
@@ -208,6 +211,9 @@ export function Hand({
 
           const isDragging = dragState?.cardId === card.id
           const dragOffsetY = isDragging ? dragState.offsetY : 0
+          const fanOffset = n <= 1 ? 0 : (idx - (n - 1) / 2) / fanDenom
+          const fanRotation = scrollable ? 0 : fanOffset * fanAmount
+          const fanDrop = scrollable ? 0 : (1 - fanOffset * fanOffset) * -8
 
           const releaseCapture = (el: HTMLDivElement, pointerId: number) => {
             try {
@@ -245,8 +251,11 @@ export function Hand({
                 cardRefs.current[idx] = el
               }}
               layoutId={useAnim ? `card-${card.id}` : undefined}
-              animate={{ y: dragOffsetY }}
-              transition={isDragging ? { duration: 0 } : undefined}
+              animate={{
+                y: dragOffsetY + fanDrop,
+                rotate: fanRotation,
+              }}
+              transition={isDragging || !useAnim ? { duration: 0 } : { type: 'spring', stiffness: 360, damping: 30 }}
               data-card-id={card.id}
               data-playable={isPlayable ? 'true' : 'false'}
               style={{
@@ -324,7 +333,7 @@ export function Hand({
                 }
                 setDragState((prev) => (prev?.cardId === card.id ? null : prev))
               }}
-              className="relative shrink-0"
+              className="uno-hand-card relative shrink-0"
             >
               <UnoCard
                 face={activeCardFace(card, side)}

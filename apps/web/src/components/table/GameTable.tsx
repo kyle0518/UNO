@@ -72,11 +72,6 @@ export function GameTable({
   )
   const isShortViewport = useMediaQuery('(max-height: 520px)')
   const tableCardSize = isLandscapeDesktop ? 'lg' : isShortViewport ? 'sm' : 'md'
-  const unoLayout = isLandscapeDesktop
-    ? 'desktop'
-    : isShortViewport
-      ? 'short'
-      : 'portrait'
 
   const mySeat = view.me ?? 0
   const n = view.players.length
@@ -97,6 +92,9 @@ export function GameTable({
     }
     return items
   }, [mySeat, n, view.players, playerNames, t])
+
+  // Keep a horizontal, scrollable rail for phones and crowded desktop tables.
+  const showOpponentRail = !isLandscapeDesktop || n > 6
 
   const catchableSeats = useMemo(
     () =>
@@ -174,20 +172,6 @@ export function GameTable({
           onOpenSettings={onOpenSettings}
         />
 
-        {!isLandscapeDesktop && (
-          <OpponentStrip
-            opponents={opponents}
-            currentSeat={view.current}
-            skippedSeat={skippedSeat}
-            catchableSeats={catchableSeats}
-            targetableSeats={targetableSeats}
-            compact={true}
-            onCatch={(target) => onSendAction({ type: 'catch_uno', target })}
-            onSelectTarget={(target) =>
-              onSendAction({ type: 'choose_target', target })
-            }
-          />
-        )}
 
         <main
           onClick={(e) => {
@@ -195,37 +179,47 @@ export function GameTable({
               onSelectCard(null)
             }
           }}
-          className={[
-            'uno-game-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3',
-            isShortViewport ? 'py-0.5' : 'py-2',
-          ].join(' ')}
+          data-testid="game-arena"
+          className="uno-arena relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
         >
-          <div
-            aria-hidden="true"
-            className={[
-              'uno-table-surface pointer-events-none absolute',
-              isLandscapeDesktop
-                ? 'inset-x-10 inset-y-5 rounded-[999px]'
-                : 'inset-x-3 inset-y-3 rounded-[44px]',
-            ].join(' ')}
-          />
+          <div className="uno-arena-felt pointer-events-none absolute" aria-hidden="true">
+            <div className="uno-arena-felt-inner absolute inset-3 rounded-[inherit]" />
+            <div className="uno-arena-center-mark absolute left-1/2 top-1/2" />
+          </div>
 
-          {isLandscapeDesktop &&
+          {showOpponentRail && (
+            <div className="uno-arena-opponents absolute inset-x-0 top-0 z-20">
+              <OpponentStrip
+                opponents={opponents}
+                currentSeat={view.current}
+                skippedSeat={skippedSeat}
+                catchableSeats={catchableSeats}
+                targetableSeats={targetableSeats}
+                compact
+                onCatch={(target) => onSendAction({ type: 'catch_uno', target })}
+                onSelectTarget={(target) =>
+                  onSendAction({ type: 'choose_target', target })
+                }
+              />
+            </div>
+          )}
+
+          {!showOpponentRail &&
             opponents.map(({ player, name }, idx) => {
-              const angleDeg = 180 + ((idx + 1) * 180) / n
-              const rad = (angleDeg * Math.PI) / 180
-              const leftPct = 50 + 39 * Math.cos(rad)
-              const topPct = 54 + 36 * Math.sin(rad)
+              // Stable positions along the far rim of the table, relative to my seat.
+              const fraction = (idx + 1) / (opponents.length + 1)
+              const leftPct = 12 + fraction * 76
+              const topPct = 13 + Math.abs(fraction - 0.5) * 16
               return (
                 <div
                   key={player.seat}
                   style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                  className="uno-arena-seat absolute z-20 -translate-x-1/2 -translate-y-1/2"
                 >
                   <OpponentAvatar
                     player={player}
                     name={name}
-                    compact={n >= 7}
+                    compact={isShortViewport || n >= 6}
                     isCurrent={view.current === player.seat}
                     isSkipped={skippedSeat === player.seat}
                     canCatch={catchableSeats.has(player.seat)}
@@ -243,7 +237,7 @@ export function GameTable({
             direction={view.direction}
             large={isLandscapeDesktop}
           />
-          <div className="relative z-10 origin-center scale-[1.04] sm:scale-[1.08] lg:scale-[1.16]">
+          <div className="uno-arena-pile relative z-10">
             <CenterPile
               topCard={view.top_card}
               side={view.side}
@@ -281,39 +275,44 @@ export function GameTable({
           </AnimatePresence>
         </main>
 
-        <StatusBar
-          isMyTurn={isMyDecision}
-          activePlayerName={activeName}
-          phase={view.phase}
-          lastError={lastError}
-          showSwipeHint={selectedCardId !== null}
-          meEliminated={meEliminated}
-          myTeam={myTeam}
-          dealingRound={dealingRound}
-          compact={isShortViewport}
-        />
-
-        <div className="uno-hand-dock relative shrink-0">
-          <Hand
-            cards={view.my_hand}
-            side={view.side}
-            legal={view.legal}
-            selectedCardId={selectedCardId}
-            compact={!isLandscapeDesktop}
-            cardSize={tableCardSize}
-            onSelectCard={onSelectCard}
-            onPlayAction={onSendAction}
-            onDraw={() => onSendAction({ type: 'draw' })}
-            onCallUno={() => onSendAction({ type: 'call_uno' })}
+        <section className="uno-player-dock relative z-20 shrink-0" data-testid="player-dock">
+          <StatusBar
+            isMyTurn={isMyDecision}
+            activePlayerName={activeName}
+            playerName={playerNames[mySeat] ?? t('game.playerYou')}
+            handCount={view.my_hand.length}
+            phase={view.phase}
+            lastError={lastError}
+            showSwipeHint={selectedCardId !== null}
+            meEliminated={meEliminated}
+            myTeam={myTeam}
+            dealingRound={dealingRound}
+            compact={isShortViewport}
           />
-        </div>
 
-        <UnoButton
-          enabled={canCallUno}
-          urgent={canCallUno && view.my_hand.length <= 2}
-          layout={unoLayout}
-          onClick={() => onSendAction({ type: 'call_uno' })}
-        />
+          <div className="uno-hand-dock relative flex items-center gap-2 px-2 sm:gap-4 sm:px-5">
+            <div className="min-w-0 flex-1">
+              <Hand
+                cards={view.my_hand}
+                side={view.side}
+                legal={view.legal}
+                selectedCardId={selectedCardId}
+                compact={!isLandscapeDesktop}
+                cardSize={tableCardSize}
+                onSelectCard={onSelectCard}
+                onPlayAction={onSendAction}
+                onDraw={() => onSendAction({ type: 'draw' })}
+                onCallUno={() => onSendAction({ type: 'call_uno' })}
+              />
+            </div>
+            <UnoButton
+              enabled={canCallUno}
+              urgent={canCallUno && view.my_hand.length <= 2}
+              layout={isLandscapeDesktop ? 'desktop' : isShortViewport ? 'short' : 'portrait'}
+              onClick={() => onSendAction({ type: 'call_uno' })}
+            />
+          </div>
+        </section>
 
         <ConfettiCanvas triggerSeq={confettiSeq} />
 
