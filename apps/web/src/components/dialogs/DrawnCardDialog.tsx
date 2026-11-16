@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { UnoCard } from '@/components/card/UnoCard'
 import { activeCardFace } from '@/game/handSort'
 import type { Card } from '@/generated/Card'
 import type { Side } from '@/generated/Side'
 import { useTranslation } from '@/i18n'
+import { DialogUnoButton } from './DialogUnoButton'
 
 export interface DrawnCardDialogProps {
   open: boolean
@@ -10,6 +12,9 @@ export interface DrawnCardDialogProps {
   side: Side
   canPlay: boolean
   canKeep: boolean
+  canCallUno?: boolean
+  unoCalled?: boolean
+  onCallUno?: () => void
   onPlay: (cardId: number) => void
   onKeep: () => void
 }
@@ -20,10 +25,26 @@ export function DrawnCardDialog({
   side,
   canPlay,
   canKeep,
+  canCallUno = false,
+  unoCalled = false,
+  onCallUno,
   onPlay,
   onKeep,
 }: DrawnCardDialogProps) {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (!open || !canCallUno || unoCalled || !onCallUno) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault()
+        onCallUno()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [open, canCallUno, unoCalled, onCallUno])
+
   if (!open || !card) return null
 
   return (
@@ -38,6 +59,11 @@ export function DrawnCardDialog({
           {t('game.drawnTitle')}
         </h2>
         <UnoCard face={activeCardFace(card, side)} size="lg" state="playable" />
+        <DialogUnoButton
+          visible={canCallUno}
+          called={unoCalled}
+          onCall={onCallUno}
+        />
         <div className="flex w-full gap-3">
           {canKeep && (
             <button

@@ -3,8 +3,15 @@ import init from '@/wasm/pkg/uno_wasm'
 let initPromise: Promise<void> | null = null
 
 export function ensureWasmInit(): Promise<void> {
-  if (!initPromise) {
-    initPromise = init().then(() => undefined)
-  }
-  return initPromise
+  if (initPromise) return initPromise
+  const pending = init()
+    .then(() => undefined)
+    .catch((err: unknown) => {
+      if (initPromise === pending) {
+        initPromise = null
+      }
+      throw err
+    })
+  initPromise = pending
+  return pending
 }

@@ -4,6 +4,7 @@ import { ChallengeDialog } from './ChallengeDialog'
 import { ColorPicker } from './ColorPicker'
 import { DrawnCardDialog } from './DrawnCardDialog'
 import { RoundResultDialog } from './RoundResultDialog'
+import { SettingsDialog } from './SettingsDialog'
 import { TargetPicker } from './TargetPicker'
 import { TurnTimer } from './TurnTimer'
 
@@ -155,5 +156,60 @@ describe('Game dialogs', () => {
       <TurnTimer timer={{ seat: 0, deadline_ms: Date.now() + 9000, total_ms: 15000 }} />,
     )
     expect(screen.getByText(/\ds/)).toBeInTheDocument()
+
+    rerender(
+      <TurnTimer
+        timer={{
+          seat: 0,
+          deadline_ms: Date.now() + 1000,
+          total_ms: 15000,
+          paused_remaining_ms: 12_000,
+        }}
+      />,
+    )
+    expect(screen.getByText('12s')).toBeInTheDocument()
+  })
+
+  it('DrawnCardDialog and ColorPicker support calling UNO via click and U hotkey', () => {
+    const onCallUno = vi.fn()
+    const { rerender } = render(
+      <DrawnCardDialog
+        open={true}
+        card={{ id: 12, light: { color: 'green', face: { k: 'number', v: 7 } }, dark: null }}
+        side="light"
+        canPlay={true}
+        canKeep={true}
+        canCallUno={true}
+        unoCalled={false}
+        onCallUno={onCallUno}
+        onPlay={vi.fn()}
+        onKeep={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /喊 UNO|Call UNO/i }))
+    expect(onCallUno).toHaveBeenCalledTimes(1)
+
+    fireEvent.keyDown(window, { key: 'u' })
+    expect(onCallUno).toHaveBeenCalledTimes(2)
+
+    rerender(
+      <ColorPicker
+        open={true}
+        side="light"
+        canCallUno={false}
+        unoCalled={true}
+        onCallUno={onCallUno}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/已喊 UNO|UNO Called/i)).toBeInTheDocument()
+  })
+
+  it('SettingsDialog opens and closes cleanly without unmounting host tree', () => {
+    const onClose = vi.fn()
+    render(<SettingsDialog open={true} onClose={onClose} />)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

@@ -10,6 +10,7 @@ export interface StatusBarProps {
   showSwipeHint: boolean
   meEliminated?: boolean
   myTeam?: number | null
+  dealingRound?: number | null
   compact?: boolean
 }
 
@@ -21,6 +22,7 @@ export function StatusBar({
   showSwipeHint,
   meEliminated = false,
   myTeam = null,
+  dealingRound = null,
   compact = false,
 }: StatusBarProps) {
   const { t } = useTranslation()
@@ -30,7 +32,9 @@ export function StatusBar({
   let statusText = meEliminated
     ? `${t('game.youEliminated')} · ${t('game.waitingTurn', { name: activePlayerName })}`
     : t('game.waitingTurn', { name: activePlayerName })
-  if (phase === 'round_over') {
+  if (dealingRound !== null) {
+    statusText = t('game.dealingRound', { round: dealingRound })
+  } else if (phase === 'round_over') {
     statusText = t('game.phaseRoundOver')
   } else if (phase === 'game_over') {
     statusText = t('game.phaseGameOver')

@@ -8,7 +8,12 @@ import {
   AnimationQueue,
   type AnimationQueueCallbacks,
 } from './AnimationQueue'
-import type { GameClient, GameUpdate, LocalTurnTimer } from './GameClient'
+import type {
+  GameClient,
+  GameUpdate,
+  LocalGameClock,
+  LocalTurnTimer,
+} from './GameClient'
 import { vibratePenalty, vibrateTurn } from './haptics'
 import { playSound } from './sound'
 
@@ -24,12 +29,19 @@ export interface ChatEntry {
   at: number
 }
 
+export interface RoundResultSummary {
+  round: number
+  winner: number | null
+  scores: number[]
+}
+
 export interface GameStoreState {
   client: GameClient | null
   view: PlayerView | null
   displayView: PlayerView | null
   animating: boolean
   activeFx: ActiveFx | null
+  lastRoundResult: RoundResultSummary | null
   unoPopup: { seat: number; caught: boolean; penalty?: number; seq: number } | null
   skippedSeat: number | null
   colorRipple: { color: Color; seq: number } | null
@@ -38,6 +50,7 @@ export interface GameStoreState {
   selectedCardId: number | null
   nextRoundPending: boolean
   timer: LocalTurnTimer | null
+  gameTimer: LocalGameClock | null
   lastError: string | null
   chat: ChatEntry[]
   emotes: { seat: number; emote: string; seq: number }[]
@@ -50,10 +63,26 @@ export interface GameStoreState {
   nextRound: () => void
 }
 
+const TRANSIENT_FX_RESET = {
+  animating: false,
+  activeFx: null,
+  unoPopup: null,
+  skippedSeat: null,
+  colorRipple: null,
+  flipping: false,
+} as const
+
 let fxSeq = 0
 let unsubscribeClient: (() => void) | null = null
 let activeQueue: AnimationQueue | null = null
 let fxClearTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearTransientFxTimers(): void {
+  if (fxClearTimer !== null) {
+    clearTimeout(fxClearTimer)
+    fxClearTimer = null
+  }
+}
 
 function isActionInLegal(legal: readonly Action[], action: Action): boolean {
   return legal.some((candidate) => {
@@ -74,13 +103,25 @@ function isActionInLegal(legal: readonly Action[], action: Action): boolean {
 }
 
 function scheduleFxClear(ms: number, clearFn: () => void): void {
-  if (fxClearTimer !== null) {
-    clearTimeout(fxClearTimer)
-  }
+  clearTransientFxTimers()
   fxClearTimer = setTimeout(() => {
     fxClearTimer = null
     clearFn()
   }, Math.max(ms, 200))
+}
+
+function notifyHumanTurnIfEntered(
+  prevDecision: number | null | undefined,
+  nextView: PlayerView,
+): void {
+  if (
+    nextView.me !== null &&
+    nextView.decision_player === nextView.me &&
+    prevDecision !== nextView.me
+  ) {
+    playSound('turn')
+    vibrateTurn()
+  }
 }
 
 function handleEventFeedback(event: Event, view: PlayerView): void {
@@ -124,12 +165,14 @@ function getOrCreateQueue(): AnimationQueue {
       handleEventFeedback(event, displayView)
       fxSeq += 1
       const seq = fxSeq
+      const prev = useGameStore.getState()
 
-      let unoPopup = useGameStore.getState().unoPopup
-      let skippedSeat = useGameStore.getState().skippedSeat
-      let colorRipple = useGameStore.getState().colorRipple
-      let flipping = useGameStore.getState().flipping
-      let confettiSeq = useGameStore.getState().confettiSeq
+      let unoPopup = prev.unoPopup
+      let skippedSeat = prev.skippedSeat
+      let colorRipple = prev.colorRipple
+      let flipping = prev.flipping
+      let confettiSeq = prev.confettiSeq
+      let lastRoundResult = prev.lastRoundResult
 
       if (event.type === 'uno_called') {
         unoPopup = { seat: event.seat, caught: false, seq }
@@ -143,12 +186,20 @@ function getOrCreateQueue(): AnimationQueue {
         flipping = true
       } else if (event.type === 'round_ended') {
         confettiSeq = seq
+        lastRoundResult = {
+          round: displayView.round,
+          winner: event.winner,
+          scores: event.scores,
+        }
+      } else if (event.type === 'round_started') {
+        lastRoundResult = null
       }
 
       useGameStore.setState({
         displayView,
         animating: durationMs > 0,
         activeFx: { event, durationMs, seq },
+        lastRoundResult,
         unoPopup,
         skippedSeat,
         colorRipple,
@@ -156,22 +207,19 @@ function getOrCreateQueue(): AnimationQueue {
         confettiSeq,
       })
 
-      if (durationMs > 0) {
-        scheduleFxClear(durationMs, () => {
-          useGameStore.setState({
-            unoPopup: null,
-            skippedSeat: null,
-            colorRipple: null,
-            flipping: false,
-          })
-        })
-      } else {
+      const clearTransient = () => {
         useGameStore.setState({
           unoPopup: null,
           skippedSeat: null,
           colorRipple: null,
           flipping: false,
         })
+      }
+      if (durationMs > 0) {
+        scheduleFxClear(durationMs, clearTransient)
+      } else {
+        clearTransientFxTimers()
+        clearTransient()
       }
     },
     onComplete: (finalView) => {
@@ -180,14 +228,7 @@ function getOrCreateQueue(): AnimationQueue {
         displayView: finalView,
         activeFx: null,
       })
-      if (
-        finalView.me !== null &&
-        finalView.decision_player === finalView.me &&
-        prevDecision !== finalView.me
-      ) {
-        playSound('turn')
-        vibrateTurn()
-      }
+      notifyHumanTurnIfEntered(prevDecision, finalView)
     },
     onIdle: () => {
       useGameStore.setState({ animating: false, activeFx: null })
@@ -201,16 +242,13 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   client: null,
   view: null,
   displayView: null,
-  animating: false,
-  activeFx: null,
-  unoPopup: null,
-  skippedSeat: null,
-  colorRipple: null,
-  flipping: false,
+  ...TRANSIENT_FX_RESET,
+  lastRoundResult: null,
   confettiSeq: 0,
   selectedCardId: null,
   nextRoundPending: false,
   timer: null,
+  gameTimer: null,
   lastError: null,
   chat: [],
   emotes: [],
@@ -223,16 +261,13 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       client,
       view: null,
       displayView: null,
-      animating: false,
-      activeFx: null,
-      unoPopup: null,
-      skippedSeat: null,
-      colorRipple: null,
-      flipping: false,
+      ...TRANSIENT_FX_RESET,
+      lastRoundResult: null,
       confettiSeq: 0,
       selectedCardId: null,
       nextRoundPending: false,
       timer: null,
+      gameTimer: null,
       lastError: null,
       chat: [],
       emotes: [],
@@ -253,10 +288,7 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
     if (activeQueue) {
       activeQueue.clear()
     }
-    if (fxClearTimer !== null) {
-      clearTimeout(fxClearTimer)
-      fxClearTimer = null
-    }
+    clearTransientFxTimers()
     const existing = get().client
     if (existing) {
       existing.leave()
@@ -265,11 +297,12 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       client: null,
       view: null,
       displayView: null,
-      animating: false,
-      activeFx: null,
+      ...TRANSIENT_FX_RESET,
+      lastRoundResult: null,
       selectedCardId: null,
       nextRoundPending: false,
       timer: null,
+      gameTimer: null,
     })
   },
 
@@ -279,38 +312,42 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
       case 'snapshot': {
         const prevDecision = get().view?.decision_player
         queue.clear()
+        clearTransientFxTimers()
         set({
           view: update.view,
           displayView: update.view,
           timer: update.timer ?? null,
-          animating: false,
-          activeFx: null,
+          gameTimer: update.gameTimer ?? null,
+          ...TRANSIENT_FX_RESET,
+          lastRoundResult: null,
           selectedCardId: null,
           nextRoundPending: false,
           lastError: null,
         })
-        if (
-          update.view.me !== null &&
-          update.view.decision_player === update.view.me &&
-          prevDecision !== update.view.me
-        ) {
-          playSound('turn')
-          vibrateTurn()
-        }
+        notifyHumanTurnIfEntered(prevDecision, update.view)
         break
       }
       case 'events': {
         set({
           view: update.view,
           timer: update.timer ?? null,
+          gameTimer: update.gameTimer ?? get().gameTimer,
           selectedCardId: null,
-          nextRoundPending: update.view.phase === 'round_over' ? get().nextRoundPending : false,
+          nextRoundPending:
+            update.view.phase === 'round_over' ? get().nextRoundPending : false,
           lastError: null,
         })
         if (!get().displayView) {
           set({ displayView: update.view })
         }
         queue.enqueue(update.events, update.view)
+        break
+      }
+      case 'timers': {
+        set({
+          timer: update.timer,
+          gameTimer: update.gameTimer,
+        })
         break
       }
       case 'error': {
@@ -357,7 +394,15 @@ export const useGameStore = create<GameStoreState>()((set, get) => ({
   nextRound: () => {
     const { client, view, nextRoundPending } = get()
     if (!client || nextRoundPending || view?.phase !== 'round_over') return
-    set({ nextRoundPending: true, lastError: null })
+    activeQueue?.clear()
+    clearTransientFxTimers()
+    set({
+      ...TRANSIENT_FX_RESET,
+      lastRoundResult: null,
+      selectedCardId: null,
+      nextRoundPending: true,
+      lastError: null,
+    })
     client.nextRound()
   },
 }))

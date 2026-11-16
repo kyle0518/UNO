@@ -19,10 +19,13 @@ export type WorkerRequest =
       seats: SeatKind[]
       playerNames?: string[]
       animSpeed?: AnimSpeed
+      paused?: boolean
     }
   | { type: 'action'; action: Action }
   | { type: 'next_round' }
   | { type: 'set_speed'; animSpeed: AnimSpeed }
+  | { type: 'pause' }
+  | { type: 'resume' }
   | { type: 'dispose' }
 
 export type WorkerResponse =
@@ -39,7 +42,14 @@ const wasmFactory: WasmFactory = {
 let wasmReady: Promise<void> | null = null
 function ensureWorkerWasm(): Promise<void> {
   if (!wasmReady) {
-    wasmReady = init().then(() => undefined)
+    const pending = init()
+      .then(() => undefined)
+      .catch((err: unknown) => {
+        if (wasmReady === pending) wasmReady = null
+        throw err
+      })
+    wasmReady = pending
+    return pending
   }
   return wasmReady
 }
@@ -67,6 +77,7 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest>) => {
             seats: msg.seats,
             playerNames: msg.playerNames,
             animSpeed: msg.animSpeed,
+            paused: msg.paused,
           })
           break
         case 'action':
@@ -77,6 +88,12 @@ self.addEventListener('message', (ev: MessageEvent<WorkerRequest>) => {
           break
         case 'set_speed':
           host.setAnimSpeed(msg.animSpeed)
+          break
+        case 'pause':
+          host.pause()
+          break
+        case 'resume':
+          host.resume()
           break
         case 'dispose':
           host.dispose()

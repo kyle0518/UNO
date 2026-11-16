@@ -6,8 +6,8 @@ import { DrawnCardDialog } from '@/components/dialogs/DrawnCardDialog'
 import { RoundResultDialog } from '@/components/dialogs/RoundResultDialog'
 import { TargetPicker } from '@/components/dialogs/TargetPicker'
 import { ConfettiCanvas } from '@/components/effects/ConfettiCanvas'
-import type { LocalTurnTimer } from '@/game/GameClient'
-import type { ActiveFx } from '@/game/store'
+import type { LocalGameClock, LocalTurnTimer } from '@/game/GameClient'
+import type { ActiveFx, RoundResultSummary } from '@/game/store'
 import type { Action } from '@/generated/Action'
 import type { PlayerView } from '@/generated/PlayerView'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
@@ -26,8 +26,11 @@ export interface GameTableProps {
   playerNames: string[]
   selectedCardId: number | null
   timer: LocalTurnTimer | null
+  gameTimer?: LocalGameClock | null
   lastError: string | null
   activeFx: ActiveFx | null
+  lastRoundResult?: RoundResultSummary | null
+  canCallUnoOverride?: boolean
   unoPopup: { seat: number; caught: boolean; penalty?: number; seq: number } | null
   skippedSeat: number | null
   colorRipple: { color: NonNullable<PlayerView['active_color']>; seq: number } | null
@@ -38,6 +41,7 @@ export interface GameTableProps {
   onSendAction: (action: Action) => void
   onNextRound: () => void
   onLeaveRequest: () => void
+  onOpenSettings?: () => void
 }
 
 export function GameTable({
@@ -45,8 +49,11 @@ export function GameTable({
   playerNames,
   selectedCardId,
   timer,
+  gameTimer = null,
   lastError,
   activeFx,
+  lastRoundResult = null,
+  canCallUnoOverride,
   unoPopup,
   skippedSeat,
   colorRipple,
@@ -57,6 +64,7 @@ export function GameTable({
   onSendAction,
   onNextRound,
   onLeaveRequest,
+  onOpenSettings,
 }: GameTableProps) {
   const { t } = useTranslation()
   const isLandscapeDesktop = useMediaQuery(
@@ -115,7 +123,8 @@ export function GameTable({
 
   const isMyDecision = view.me !== null && view.decision_player === view.me
   const canDraw = view.legal.some((a) => a.type === 'draw')
-  const canCallUno = view.legal.some((a) => a.type === 'call_uno')
+  const canCallUno =
+    canCallUnoOverride ?? view.legal.some((a) => a.type === 'call_uno')
   const drawnCardObj =
     view.drawn_card !== null
       ? (view.my_hand.find((c) => c.id === view.drawn_card) ?? null)
@@ -141,6 +150,12 @@ export function GameTable({
 
   const roundEvent =
     activeFx?.event.type === 'round_ended' ? activeFx.event : null
+  const resolvedWinner = roundEvent
+    ? roundEvent.winner
+    : (lastRoundResult?.winner ?? null)
+  const resolvedDeltas = roundEvent?.scores ?? lastRoundResult?.scores
+  const dealingRound =
+    activeFx?.event.type === 'round_started' ? activeFx.event.round : null
 
   return (
     <MotionConfig reducedMotion="user">
@@ -154,7 +169,9 @@ export function GameTable({
           round={view.round}
           side={view.side}
           timer={timer}
+          gameTimer={gameTimer}
           onLeaveRequest={onLeaveRequest}
+          onOpenSettings={onOpenSettings}
         />
 
         {!isLandscapeDesktop && (
@@ -267,6 +284,7 @@ export function GameTable({
           showSwipeHint={selectedCardId !== null}
           meEliminated={meEliminated}
           myTeam={myTeam}
+          dealingRound={dealingRound}
           compact={isShortViewport}
         />
 
@@ -295,6 +313,9 @@ export function GameTable({
         <ColorPicker
           open={isMyDecision && view.phase === 'choose_color'}
           side={view.side}
+          canCallUno={canCallUno}
+          unoCalled={mePlayer?.uno_called ?? false}
+          onCallUno={() => onSendAction({ type: 'call_uno' })}
           onSelect={(color) => onSendAction({ type: 'choose_color', color })}
         />
 
@@ -304,6 +325,9 @@ export function GameTable({
           side={view.side}
           canPlay={canPlayDrawn}
           canKeep={canKeepDrawn}
+          canCallUno={canCallUno}
+          unoCalled={mePlayer?.uno_called ?? false}
+          onCallUno={() => onSendAction({ type: 'call_uno' })}
           onPlay={(card) => onSendAction({ type: 'play', card })}
           onKeep={() => onSendAction({ type: 'pass' })}
         />
@@ -328,8 +352,8 @@ export function GameTable({
           round={view.round}
           players={view.players}
           playerNames={playerNames}
-          winnerSeat={roundEvent?.winner ?? null}
-          roundDeltas={roundEvent?.scores}
+          winnerSeat={resolvedWinner}
+          roundDeltas={resolvedDeltas}
           nextRoundPending={nextRoundPending}
           onNextRound={onNextRound}
         />

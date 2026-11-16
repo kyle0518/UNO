@@ -9,6 +9,7 @@ export interface LocalGameClientParams {
   seed: number
   seats: SeatKind[]
   playerNames?: string[]
+  paused?: boolean
   onReplayReady?: (replayJson: string) => void
 }
 
@@ -63,6 +64,7 @@ export class LocalGameClient implements GameClient {
       seats: params.seats,
       playerNames: params.playerNames,
       animSpeed: lastSpeed,
+      paused: params.paused,
     })
   }
 
@@ -83,6 +85,14 @@ export class LocalGameClient implements GameClient {
 
   nextRound(): void {
     this.post({ type: 'next_round' })
+  }
+
+  pause(): void {
+    this.post({ type: 'pause' })
+  }
+
+  resume(): void {
+    this.post({ type: 'resume' })
   }
 
   leave(): void {

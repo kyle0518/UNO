@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { TurnTimer } from '@/components/dialogs/TurnTimer'
-import type { LocalTurnTimer } from '@/game/GameClient'
+import type { LocalGameClock, LocalTurnTimer } from '@/game/GameClient'
 import type { ModeKind } from '@/generated/ModeKind'
 import type { Side } from '@/generated/Side'
 import { useTranslation, type TranslationKey } from '@/i18n'
@@ -12,7 +13,50 @@ export interface TopBarProps {
   round: number
   side: Side
   timer: LocalTurnTimer | null
+  gameTimer?: LocalGameClock | null
   onLeaveRequest: () => void
+  onOpenSettings?: () => void
+}
+
+function formatClock(ms: number): string {
+  const totalSec = Math.ceil(Math.max(0, ms) / 1000)
+  const mins = Math.floor(totalSec / 60)
+  const secs = totalSec % 60
+  return `${mins}:${String(secs).padStart(2, '0')}`
+}
+
+function GameClockBadge({ gameTimer }: { gameTimer: LocalGameClock }) {
+  const { t } = useTranslation()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (gameTimer.paused_remaining_ms !== undefined) return
+    const id = window.setInterval(() => {
+      setNow(Date.now())
+    }, 250)
+    return () => window.clearInterval(id)
+  }, [gameTimer])
+
+  const remainingMs = Math.max(
+    0,
+    gameTimer.paused_remaining_ms ?? gameTimer.deadline_ms - now,
+  )
+  const urgent = remainingMs <= 30_000
+  const formatted = formatClock(remainingMs)
+
+  return (
+    <span
+      aria-label={`${t('game.gameClockLabel')}: ${formatted}`}
+      className={[
+        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums',
+        urgent
+          ? 'bg-red-500/20 text-red-200 ring-1 ring-red-400/60'
+          : 'bg-white/10 text-text-primary',
+      ].join(' ')}
+    >
+      ⏱ {formatted}
+    </span>
+  )
 }
 
 export function TopBar({
@@ -21,7 +65,9 @@ export function TopBar({
   round,
   side,
   timer,
+  gameTimer = null,
   onLeaveRequest,
+  onOpenSettings,
 }: TopBarProps) {
   const { t } = useTranslation()
   const handSort = useSettings((s) => s.handSort)
@@ -35,7 +81,7 @@ export function TopBar({
       className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-black/25 px-3 py-1 backdrop-blur-md"
       style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={onLeaveRequest}
@@ -44,7 +90,7 @@ export function TopBar({
         >
           ←
         </button>
-        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="truncate text-sm font-bold text-text-primary">
             {modeLabel}
           </span>
@@ -66,7 +112,10 @@ export function TopBar({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
+        {gameTimer && gameTimer.total_ms > 0 && (
+          <GameClockBadge gameTimer={gameTimer} />
+        )}
         <TurnTimer timer={timer} />
         <button
           type="button"
@@ -80,13 +129,24 @@ export function TopBar({
                 : t('settings.sortNumber'),
           })}
         </button>
-        <Link
-          to="/settings"
-          className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-base transition hover:bg-white/20"
-          aria-label={t('home.settings')}
-        >
-          ⚙
-        </Link>
+        {onOpenSettings ? (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-base transition hover:bg-white/20"
+            aria-label={t('home.settings')}
+          >
+            ⚙
+          </button>
+        ) : (
+          <Link
+            to="/settings"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-base transition hover:bg-white/20"
+            aria-label={t('home.settings')}
+          >
+            ⚙
+          </Link>
+        )}
       </div>
     </header>
   )

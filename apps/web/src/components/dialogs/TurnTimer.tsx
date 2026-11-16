@@ -10,7 +10,7 @@ export function TurnTimer({ timer, className = '' }: TurnTimerProps) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!timer || timer.total_ms <= 0) return
+    if (!timer || timer.total_ms <= 0 || timer.paused_remaining_ms !== undefined) return
     const id = window.setInterval(() => {
       setNow(Date.now())
     }, 200)
@@ -19,7 +19,10 @@ export function TurnTimer({ timer, className = '' }: TurnTimerProps) {
 
   if (!timer || timer.total_ms <= 0) return null
 
-  const remainingMs = Math.max(0, timer.deadline_ms - now)
+  const remainingMs = Math.max(
+    0,
+    timer.paused_remaining_ms ?? timer.deadline_ms - now,
+  )
   const seconds = Math.ceil(remainingMs / 1000)
   const ratio = Math.min(1, Math.max(0, remainingMs / timer.total_ms))
   const urgent = seconds <= 5

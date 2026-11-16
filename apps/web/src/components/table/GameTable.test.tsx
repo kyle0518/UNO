@@ -252,4 +252,77 @@ describe('GameTable', () => {
     fireEvent.click(nextBtn)
     expect(onNextRound).not.toHaveBeenCalled()
   })
+
+  it('allows calling UNO inside DrawnCardDialog, during play animation override, and opening settings in-place', () => {
+    const onSendAction = vi.fn()
+    const onOpenSettings = vi.fn()
+    const view = sampleView()
+    view.phase = 'drawn_card_decision'
+    view.drawn_card = 10
+    view.legal = [
+      { type: 'play', card: 10 },
+      { type: 'pass' },
+    ]
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          gameTimer={{ deadline_ms: Date.now() + 90_000, total_ms: 180_000 }}
+          lastError={null}
+          activeFx={null}
+          canCallUnoOverride={true}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={vi.fn()}
+          onSendAction={onSendAction}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+          onOpenSettings={onOpenSettings}
+        />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /喊 UNO|Call UNO/i }))
+    expect(onSendAction).toHaveBeenCalledWith({ type: 'call_uno' })
+
+    fireEvent.click(screen.getByRole('button', { name: /設定|Settings/i }))
+    expect(onOpenSettings).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/1:30/)).toBeInTheDocument()
+
+    // Simulate round_over with activeFx === null (after FX finishes or animSpeed=off)
+    const roundOverView = sampleView()
+    roundOverView.phase = 'round_over'
+    roundOverView.decision_player = null
+    roundOverView.legal = []
+    rerender(
+      <MemoryRouter>
+        <GameTable
+          view={roundOverView}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          lastRoundResult={{ round: 1, winner: 0, scores: [75, 0, 0, 0] }}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={vi.fn()}
+          onSendAction={onSendAction}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText(/\+75/)).toBeInTheDocument()
+  })
 })

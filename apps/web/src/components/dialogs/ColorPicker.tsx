@@ -4,11 +4,15 @@ import type { Color } from '@/generated/Color'
 import type { Side } from '@/generated/Side'
 import { useTranslation, type TranslationKey } from '@/i18n'
 import { useSettings } from '@/settings/useSettings'
+import { DialogUnoButton } from './DialogUnoButton'
 
 export interface ColorPickerProps {
   open: boolean
   side: Side
   colorBlind?: boolean
+  canCallUno?: boolean
+  unoCalled?: boolean
+  onCallUno?: () => void
   onSelect: (color: Color) => void
 }
 
@@ -30,6 +34,9 @@ export function ColorPicker({
   open,
   side,
   colorBlind,
+  canCallUno = false,
+  unoCalled = false,
+  onCallUno,
   onSelect,
 }: ColorPickerProps) {
   const { t } = useTranslation()
@@ -46,11 +53,14 @@ export function ColorPicker({
           e.preventDefault()
           onSelect(picked)
         }
+      } else if ((e.key === 'u' || e.key === 'U') && canCallUno && !unoCalled && onCallUno) {
+        e.preventDefault()
+        onCallUno()
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [open, choices, onSelect])
+  }, [open, choices, onSelect, canCallUno, unoCalled, onCallUno])
 
   if (!open) return null
 
@@ -92,6 +102,13 @@ export function ColorPicker({
               </button>
             )
           })}
+        </div>
+        <div className="mt-4">
+          <DialogUnoButton
+            visible={canCallUno}
+            called={unoCalled}
+            onCall={onCallUno}
+          />
         </div>
       </div>
     </div>

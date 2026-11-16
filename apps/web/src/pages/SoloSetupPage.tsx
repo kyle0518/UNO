@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '@/auth/useAuth'
 import { AppShell } from '@/components/layout/AppShell'
+import { SoloHouseRules } from '@/components/solo/SoloHouseRules'
 import type { BotKind, SeatKind } from '@/game/GameClient'
 import { unlockAudio } from '@/game/sound'
 import {
@@ -10,10 +11,6 @@ import {
   savePendingSoloMatch,
 } from '@/game/soloSession'
 import type { RuleConfig } from '@/generated/RuleConfig'
-import type { Scoring } from '@/generated/Scoring'
-import type { StackDraw } from '@/generated/StackDraw'
-import type { UnoRule } from '@/generated/UnoRule'
-import type { Wild4Rule } from '@/generated/Wild4Rule'
 import { useTranslation, type TranslationKey } from '@/i18n'
 import { ensureWasmInit } from '@/wasm/init'
 import { preset, validate_config } from '@/wasm/pkg/uno_wasm'
@@ -203,10 +200,6 @@ export function SoloSetupPage() {
     void navigate('/game')
   }
 
-  const isDaily = config?.mode_id === 'daily'
-  const isNoMercy = config?.mode === 'no_mercy'
-  const isFlip = config?.mode === 'flip'
-
   return (
     <AppShell title={t('solo.title')} showBack>
       <div className="mx-auto flex max-w-2xl flex-col gap-5 pb-10">
@@ -314,199 +307,12 @@ export function SoloSetupPage() {
         </section>
 
         {config && (
-          <section className="rounded-2xl uno-surface p-4">
-            <button
-              type="button"
-              aria-expanded={drawerOpen}
-              onClick={() => setDrawerOpen((o) => !o)}
-              className="flex min-h-11 w-full items-center justify-between text-left text-sm font-bold text-text-primary"
-            >
-              <span>{t('solo.houseRules')}</span>
-              <span>{drawerOpen ? '▲' : '▼'}</span>
-            </button>
-
-            {drawerOpen && (
-              <div className="mt-3 flex flex-col gap-3 border-t border-white/10 pt-3 text-sm">
-                {(isFlip || isNoMercy || isDaily) && (
-                  <p className="text-xs text-text-muted">
-                    {t('solo.modeLockedNote')}
-                  </p>
-                )}
-
-                {!isNoMercy && !isDaily && (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold">{t('solo.scoring')}</span>
-                      <div className="flex gap-2">
-                        {(['points', 'single_round'] as const).map((kind) => {
-                          const active = config.scoring.type === kind
-                          const scoring: Scoring =
-                            kind === 'points'
-                              ? {
-                                  type: 'points',
-                                  target:
-                                    config.scoring.type === 'points'
-                                      ? config.scoring.target
-                                      : 500,
-                                }
-                              : { type: 'single_round' }
-                          return (
-                            <button
-                              key={kind}
-                              type="button"
-                              onClick={() => updateRule({ scoring })}
-                              className={[
-                                'min-h-11 rounded-xl px-3 text-xs font-bold',
-                                active
-                                  ? 'bg-accent text-neutral-950'
-                                  : 'bg-white/10 text-text-primary',
-                              ].join(' ')}
-                            >
-                              {kind === 'points'
-                                ? t('solo.scoringPoints')
-                                : t('solo.scoringSingle')}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {config.scoring.type === 'points' && (
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-semibold">
-                          {t('solo.targetScore', { score: config.scoring.target })}
-                        </span>
-                        <div className="flex gap-1.5">
-                          {[200, 300, 500, 1000].map((target) => {
-                            const active =
-                              config.scoring.type === 'points' &&
-                              config.scoring.target === target
-                            return (
-                              <button
-                                key={target}
-                                type="button"
-                                onClick={() =>
-                                  updateRule({ scoring: { type: 'points', target } })
-                                }
-                                className={[
-                                  'min-h-11 min-w-11 rounded-xl px-2.5 text-xs font-bold tabular-nums',
-                                  active
-                                    ? 'bg-accent text-neutral-950'
-                                    : 'bg-white/10 text-text-primary',
-                                ].join(' ')}
-                              >
-                                {target}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!isFlip && !isNoMercy && (
-                  <label className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{t('solo.stackDraw')}</span>
-                    <select
-                      value={config.stack_draw}
-                      onChange={(e) =>
-                        updateRule({ stack_draw: e.target.value as StackDraw })
-                      }
-                      className="min-h-11 rounded-xl border border-white/15 bg-black/40 px-3 text-xs font-semibold text-text-primary"
-                    >
-                      <option value="none">{t('solo.stackNone')}</option>
-                      <option value="same">{t('solo.stackSame')}</option>
-                      <option value="progressive">{t('solo.stackProgressive')}</option>
-                      <option value="no_mercy">{t('solo.stackNoMercy')}</option>
-                    </select>
-                  </label>
-                )}
-
-                {!isNoMercy && (
-                  <label className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{t('solo.wild4Rule')}</span>
-                    <select
-                      value={config.wild4_rule}
-                      onChange={(e) =>
-                        updateRule({ wild4_rule: e.target.value as Wild4Rule })
-                      }
-                      className="min-h-11 rounded-xl border border-white/15 bg-black/40 px-3 text-xs font-semibold text-text-primary"
-                    >
-                      {config.stack_draw === 'none' && (
-                        <option value="challenge">{t('solo.wild4Challenge')}</option>
-                      )}
-                      <option value="strict">{t('solo.wild4Strict')}</option>
-                      <option value="free">{t('solo.wild4Free')}</option>
-                    </select>
-                  </label>
-                )}
-
-                {!isFlip && !isNoMercy && (
-                  <ToggleRow
-                    label={t('solo.sevenZero')}
-                    value={config.seven_zero}
-                    onChange={(seven_zero) => updateRule({ seven_zero })}
-                  />
-                )}
-
-                {!isFlip && (
-                  <ToggleRow
-                    label={t('solo.jumpIn')}
-                    value={config.jump_in}
-                    onChange={(jump_in) => updateRule({ jump_in })}
-                  />
-                )}
-
-                {!isNoMercy && (
-                  <>
-                    <ToggleRow
-                      label={t('solo.drawToMatch')}
-                      value={config.draw_to_match}
-                      onChange={(draw_to_match) => updateRule({ draw_to_match })}
-                    />
-                    <ToggleRow
-                      label={t('solo.forcePlay')}
-                      value={config.force_play}
-                      onChange={(force_play) => updateRule({ force_play })}
-                    />
-                  </>
-                )}
-
-                <label className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{t('solo.unoRule')}</span>
-                  <select
-                    value={config.uno_rule}
-                    onChange={(e) =>
-                      updateRule({ uno_rule: e.target.value as UnoRule })
-                    }
-                    className="min-h-11 rounded-xl border border-white/15 bg-black/40 px-3 text-xs font-semibold text-text-primary"
-                  >
-                    <option value="manual">{t('solo.unoManual')}</option>
-                    <option value="auto">{t('solo.unoAuto')}</option>
-                  </select>
-                </label>
-
-                <label className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{t('solo.turnSeconds')}</span>
-                  <select
-                    value={config.turn_seconds}
-                    onChange={(e) =>
-                      updateRule({ turn_seconds: Number(e.target.value) })
-                    }
-                    className="min-h-11 rounded-xl border border-white/15 bg-black/40 px-3 text-xs font-semibold text-text-primary"
-                  >
-                    <option value={0}>{t('solo.noLimit')}</option>
-                    {[5, 15, 30, 60].map((sec) => (
-                      <option key={sec} value={sec}>
-                        {t('solo.secondsUnit', { sec })}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
-          </section>
+          <SoloHouseRules
+            config={config}
+            open={drawerOpen}
+            onToggleOpen={() => setDrawerOpen((o) => !o)}
+            onUpdate={updateRule}
+          />
         )}
 
         {errorMsg && (
@@ -526,36 +332,5 @@ export function SoloSetupPage() {
         </button>
       </div>
     </AppShell>
-  )
-}
-
-function ToggleRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: boolean
-  onChange: (next: boolean) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="font-semibold">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={value}
-        onClick={() => onChange(!value)}
-        className={[
-          'min-h-11 min-w-20 rounded-xl px-3 text-xs font-bold transition',
-          value
-            ? 'bg-btn-green text-white'
-            : 'bg-white/10 text-text-muted',
-        ].join(' ')}
-      >
-        {value ? t('common.on') : t('common.off')}
-      </button>
-    </div>
   )
 }

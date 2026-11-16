@@ -74,4 +74,52 @@ describe('ResultsPage', () => {
     expect(pending?.seats).toEqual(['human', 'hard', 'random', 'heuristic'])
     expect(pending?.playerNames).toEqual(['You', 'Bot A', 'Bot B', 'Bot C'])
   })
+
+  it('uses mode_id for recent replay labels so party/blitz presets show accurately', () => {
+    const blitzConfig: RuleConfig = {
+      ...mockConfig(),
+      mode_id: 'blitz',
+      mode: 'classic',
+      turn_seconds: 5,
+      game_seconds: 180,
+      uno_rule: 'auto',
+    }
+    const partyConfig: RuleConfig = {
+      ...mockConfig(),
+      mode_id: 'party',
+      mode: 'classic',
+      seven_zero: true,
+      jump_in: true,
+    }
+    const baseRecord: LocalReplayRecord = {
+      id: 'local-1-1',
+      replayJson: '{"steps":[]}',
+      config: blitzConfig,
+      seed: 1,
+      playerNames: ['You', 'Bot 1'],
+      seats: ['human', 'heuristic'],
+      rankings: [0, 1],
+      scores: [100, 0],
+      stepsCount: 12,
+      savedAt: '2026-11-14T00:00:00.000Z',
+    }
+    const partyRecord: LocalReplayRecord = {
+      ...baseRecord,
+      id: 'local-2-2',
+      config: partyConfig,
+    }
+    sessionStorage.setItem('uno-solo-last-result', JSON.stringify(baseRecord))
+    localStorage.setItem('uno-local-replays', JSON.stringify([baseRecord, partyRecord]))
+
+    render(
+      <MemoryRouter initialEntries={['/results']}>
+        <Routes>
+          <Route path="/results" element={<ResultsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByText(/閃電 Blitz|Blitz/i).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/派對 Party|Party/i)).toBeInTheDocument()
+  })
 })

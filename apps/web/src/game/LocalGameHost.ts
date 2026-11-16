@@ -4,7 +4,14 @@ import type { PlayerView } from '@/generated/PlayerView'
 import type { ReplayPlayer } from '@/generated/ReplayPlayer'
 import type { RuleConfig } from '@/generated/RuleConfig'
 import { animDurationMultiplier, type AnimSpeed } from '@/settings/useSettings'
-import type { BotKind, GameUpdate, LocalTurnTimer, SeatKind } from './GameClient'
+import { getEventDurationMs } from './AnimationQueue'
+import type {
+  BotKind,
+  GameUpdate,
+  LocalGameClock,
+  LocalTurnTimer,
+  SeatKind,
+} from './GameClient'
 
 export interface WasmGameLike {
   set_replay_meta(players: ReplayPlayer[], created_at: string): void
@@ -35,6 +42,72 @@ export interface LocalGameHostOptions {
   now?: () => number
 }
 
+const START_FX_TYPES = new Set<Event['type']>([
+  'player_skipped',
+  'direction_changed',
+  'color_chosen',
+  'side_flipped',
+])
+
+function computePrngSeed(seed: number): number {
+  return Math.imul((seed ^ 0x9e37_79b9) >>> 0, 0x85eb_ca6b) >>> 0 || 1
+}
+
+function buildReplayPlayers(
+  seats: SeatKind[],
+  playerNames?: string[],
+): ReplayPlayer[] {
+  return seats.map((kind, seat) => ({
+    seat,
+    name: playerNames?.[seat] ?? (kind === 'human' ? 'You' : `AI ${seat}`),
+    user_id: null,
+    kind: kind === 'human' ? 'human' : 'bot',
+    ...(kind !== 'human' ? { bot: kind } : {}),
+  }))
+}
+
+function extractStartEffectEvents(events: readonly Event[]): Event[] {
+  return events.filter((ev) => START_FX_TYPES.has(ev.type))
+}
+
+function computeRoundStartDelayMs(
+  events: readonly Event[],
+  animSpeed: AnimSpeed,
+): number {
+  let total = 0
+  for (const ev of events) {
+    if (ev.type === 'round_ended') continue
+    total += getEventDurationMs(ev, animSpeed)
+  }
+  return total
+}
+
+function buildTurnTimer(
+  view: PlayerView,
+  config: RuleConfig | null,
+  nowMs: number,
+  extraDelayMs: number,
+  paused: boolean,
+): LocalTurnTimer | null {
+  if (
+    !config ||
+    config.turn_seconds <= 0 ||
+    view.phase === 'round_over' ||
+    view.phase === 'game_over' ||
+    view.decision_player === null
+  ) {
+    return null
+  }
+  const totalMs = config.turn_seconds * 1000
+  const remaining = totalMs + extraDelayMs
+  return {
+    seat: view.decision_player,
+    deadline_ms: nowMs + remaining,
+    total_ms: totalMs,
+    ...(paused ? { paused_remaining_ms: remaining } : {}),
+  }
+}
+
 export class LocalGameHost {
   private readonly factory: WasmFactory
   private readonly emit: (update: GameUpdate) => void
@@ -52,6 +125,12 @@ export class LocalGameHost {
   private catchTimer: ReturnType<typeof setTimeout> | null = null
   private gameClockTimer: ReturnType<typeof setTimeout> | null = null
   private activeTimer: LocalTurnTimer | null = null
+  private gameClockDeadlineMs: number | null = null
+  private gameClockRemainingMs: number | null = null
+  private paused = false
+  private pausedAt: number | null = null
+  private pendingStartFxEvents: Event[] = []
+  private pendingStartExtraDelayMs = 0
   private catchCheckedKey: string | null = null
   private prngState = 1
   private gameOverNotified = false
@@ -70,6 +149,7 @@ export class LocalGameHost {
     seats: SeatKind[]
     playerNames?: string[]
     animSpeed?: AnimSpeed
+    paused?: boolean
   }): void {
     this.clearAllTimers()
     this.bots.clear()
@@ -78,21 +158,15 @@ export class LocalGameHost {
     this.config = params.config
     this.animSpeed = params.animSpeed ?? '1x'
     this.startedAt = this.now()
-    this.prngState = Math.imul((params.seed ^ 0x9e37_79b9) >>> 0, 0x85eb_ca6b) >>> 0 || 1
+    this.paused = Boolean(params.paused)
+    this.pausedAt = this.paused ? this.startedAt : null
+    this.prngState = computePrngSeed(params.seed)
 
     const firstHuman = params.seats.indexOf('human')
     this.humanSeat = firstHuman >= 0 ? firstHuman : null
 
     const game = this.factory.createGame(params.config, params.seed)
-    const replayPlayers: ReplayPlayer[] = params.seats.map((kind, seat) => ({
-      seat,
-      name:
-        params.playerNames?.[seat] ??
-        (kind === 'human' ? 'You' : `AI ${seat}`),
-      user_id: null,
-      kind: kind === 'human' ? 'human' : 'bot',
-      ...(kind !== 'human' ? { bot: kind } : {}),
-    }))
+    const replayPlayers = buildReplayPlayers(params.seats, params.playerNames)
     game.set_replay_meta(replayPlayers, new Date(this.startedAt).toISOString())
 
     params.seats.forEach((kind, seat) => {
@@ -106,33 +180,130 @@ export class LocalGameHost {
     })
 
     this.game = game
+    this.initGameClock(params.config.game_seconds)
 
-    if (params.config.game_seconds > 0) {
-      this.gameClockTimer = setTimeout(() => {
-        this.gameClockTimer = null
-        if (!this.disposed && this.game && !this.game.is_over()) {
-          this.applyInternal(this.humanSeat ?? 0, { type: 'end_by_time' })
-        }
-      }, params.config.game_seconds * 1000)
-    }
+    const startFx = this.factory.filterEvents(
+      extractStartEffectEvents(game.initial_events()),
+      this.humanSeat ?? undefined,
+    )
+    const extraDelayMs = computeRoundStartDelayMs(startFx, this.animSpeed)
 
     const view = this.currentView()
-    this.refreshTurnDeadline(view)
+    this.refreshTurnDeadline(view, extraDelayMs)
     this.emit({
       kind: 'snapshot',
       view,
       timer: this.activeTimer,
+      gameTimer: this.currentGameTimer(),
     })
 
-    this.scheduleNext()
+    if (this.paused) {
+      this.pendingStartFxEvents = startFx
+      this.pendingStartExtraDelayMs = extraDelayMs
+      return
+    }
+
+    this.pendingStartFxEvents = []
+    this.pendingStartExtraDelayMs = 0
+    if (startFx.length > 0) {
+      this.emit({
+        kind: 'events',
+        events: startFx,
+        view,
+        timer: this.activeTimer,
+        gameTimer: this.currentGameTimer(),
+      })
+    }
+    this.scheduleNext(extraDelayMs)
   }
 
   setAnimSpeed(speed: AnimSpeed): void {
     this.animSpeed = speed
   }
 
+  pause(): void {
+    if (this.disposed || !this.game || this.paused || this.game.is_over()) return
+    const nowMs = this.now()
+    this.paused = true
+    this.pausedAt = nowMs
+
+    if (this.activeTimer) {
+      const remaining = Math.max(0, this.activeTimer.deadline_ms - nowMs)
+      this.activeTimer = {
+        ...this.activeTimer,
+        deadline_ms: nowMs + remaining,
+        paused_remaining_ms: remaining,
+      }
+    }
+    if (this.gameClockDeadlineMs !== null) {
+      this.gameClockRemainingMs = Math.max(0, this.gameClockDeadlineMs - nowMs)
+      this.gameClockDeadlineMs = null
+    }
+    if (this.catchTimer !== null) {
+      this.catchCheckedKey = null
+    }
+
+    this.clearAllTimers()
+    this.emit({
+      kind: 'timers',
+      timer: this.activeTimer,
+      gameTimer: this.currentGameTimer(),
+    })
+  }
+
+  resume(): void {
+    if (this.disposed || !this.game || !this.paused || this.game.is_over()) return
+    const nowMs = this.now()
+    this.startedAt += Math.max(0, nowMs - (this.pausedAt ?? nowMs))
+    this.paused = false
+    this.pausedAt = null
+
+    if (this.activeTimer) {
+      const remaining =
+        this.activeTimer.paused_remaining_ms ??
+        Math.max(0, this.activeTimer.deadline_ms - nowMs)
+      this.activeTimer = {
+        seat: this.activeTimer.seat,
+        deadline_ms: nowMs + remaining,
+        total_ms: this.activeTimer.total_ms,
+      }
+    }
+
+    const startFx = this.pendingStartFxEvents
+    const extraDelay = this.pendingStartExtraDelayMs
+    this.pendingStartFxEvents = []
+    this.pendingStartExtraDelayMs = 0
+
+    if (this.config && this.config.game_seconds > 0) {
+      const remainingGameMs = this.gameClockRemainingMs ?? 0
+      if (remainingGameMs <= 0) {
+        this.applyInternal(this.humanSeat ?? 0, { type: 'end_by_time' })
+        return
+      }
+      this.armGameClockTimer(remainingGameMs)
+    }
+
+    this.emit({
+      kind: 'timers',
+      timer: this.activeTimer,
+      gameTimer: this.currentGameTimer(),
+    })
+
+    if (startFx.length > 0) {
+      this.emit({
+        kind: 'events',
+        events: startFx,
+        view: this.currentView(),
+        timer: this.activeTimer,
+        gameTimer: this.currentGameTimer(),
+      })
+    }
+
+    this.scheduleNext(extraDelay)
+  }
+
   handleAction(action: Action): void {
-    if (this.disposed || !this.game || this.humanSeat === null) return
+    if (this.disposed || !this.game || this.paused || this.humanSeat === null) return
     this.applyInternal(this.humanSeat, action)
   }
 
@@ -141,7 +312,8 @@ export class LocalGameHost {
     this.clearStepTimers()
     try {
       const events = this.game.next_round()
-      this.afterGameStep(events, this.getRoundStartDelayMs(events))
+      const delayMs = computeRoundStartDelayMs(events, this.animSpeed)
+      this.afterGameStep(events, delayMs)
     } catch (err) {
       this.emit({
         kind: 'error',
@@ -159,6 +331,53 @@ export class LocalGameHost {
     this.clearAllTimers()
     this.game = null
     this.bots.clear()
+  }
+
+  private initGameClock(gameSeconds: number): void {
+    this.gameClockDeadlineMs = null
+    this.gameClockRemainingMs = null
+    if (gameSeconds <= 0) return
+
+    const totalMs = gameSeconds * 1000
+    if (this.paused) {
+      this.gameClockRemainingMs = totalMs
+      return
+    }
+    this.armGameClockTimer(totalMs)
+  }
+
+  private armGameClockTimer(remainingMs: number): void {
+    if (this.gameClockTimer !== null) {
+      clearTimeout(this.gameClockTimer)
+    }
+    this.gameClockRemainingMs = remainingMs
+    this.gameClockDeadlineMs = this.now() + remainingMs
+    this.gameClockTimer = setTimeout(() => {
+      this.gameClockTimer = null
+      this.gameClockDeadlineMs = null
+      this.gameClockRemainingMs = 0
+      if (!this.disposed && this.game && !this.game.is_over()) {
+        this.applyInternal(this.humanSeat ?? 0, { type: 'end_by_time' })
+      }
+    }, remainingMs)
+  }
+
+  private currentGameTimer(): LocalGameClock | null {
+    if (!this.config || this.config.game_seconds <= 0) return null
+    const totalMs = this.config.game_seconds * 1000
+    if (this.paused) {
+      const remaining = this.gameClockRemainingMs ?? totalMs
+      return {
+        deadline_ms: this.now() + remaining,
+        total_ms: totalMs,
+        paused_remaining_ms: remaining,
+      }
+    }
+    if (this.gameClockDeadlineMs === null) return null
+    return {
+      deadline_ms: this.gameClockDeadlineMs,
+      total_ms: totalMs,
+    }
   }
 
   private applyInternal(seat: number, action: Action): void {
@@ -190,6 +409,7 @@ export class LocalGameHost {
       events: filtered,
       view,
       timer: this.activeTimer,
+      gameTimer: this.currentGameTimer(),
     })
 
     if (this.game.is_over()) {
@@ -204,20 +424,6 @@ export class LocalGameHost {
     this.scheduleNext(extraDelayMs)
   }
 
-  private getRoundStartDelayMs(events: Event[]): number {
-    const mult = animDurationMultiplier(this.animSpeed)
-    if (mult === 0) return 0
-    let base = 0
-    for (const ev of events) {
-      if (ev.type === 'round_started') {
-        base += ev.hand_sizes.reduce((sum, n) => sum + n, 0) * 60
-      } else if (ev.type === 'start_card_flipped') {
-        base += 200
-      }
-    }
-    return Math.round(base * mult)
-  }
-
   private currentView(): PlayerView {
     if (!this.game) {
       throw new Error('LocalGameHost not initialized')
@@ -228,26 +434,17 @@ export class LocalGameHost {
   }
 
   private refreshTurnDeadline(view: PlayerView, extraDelayMs = 0): void {
-    if (
-      !this.config ||
-      this.config.turn_seconds <= 0 ||
-      view.phase === 'round_over' ||
-      view.phase === 'game_over' ||
-      view.decision_player === null
-    ) {
-      this.activeTimer = null
-      return
-    }
-    const totalMs = this.config.turn_seconds * 1000
-    this.activeTimer = {
-      seat: view.decision_player,
-      deadline_ms: this.now() + totalMs + extraDelayMs,
-      total_ms: totalMs,
-    }
+    this.activeTimer = buildTurnTimer(
+      view,
+      this.config,
+      this.now(),
+      extraDelayMs,
+      this.paused,
+    )
   }
 
   private scheduleNext(extraDelayMs = 0): void {
-    if (this.disposed || !this.game || this.game.is_over()) return
+    if (this.disposed || !this.game || this.paused || this.game.is_over()) return
     const dp = this.game.decision_player()
     if (dp === undefined || dp === null) return
 
@@ -276,7 +473,7 @@ export class LocalGameHost {
       const expectedTurn = this.currentView().turn
       this.turnTimer = setTimeout(() => {
         this.turnTimer = null
-        if (!this.game || this.disposed) return
+        if (!this.game || this.disposed || this.paused) return
         const cur = this.currentView()
         if (cur.turn === expectedTurn && this.game.decision_player() === dp) {
           this.applyInternal(dp, { type: 'timeout' })
@@ -286,7 +483,7 @@ export class LocalGameHost {
   }
 
   private runBotStep(seat: number): void {
-    if (this.disposed || !this.game || this.game.is_over()) return
+    if (this.disposed || !this.game || this.paused || this.game.is_over()) return
     if (this.game.decision_player() !== seat) {
       this.scheduleNext()
       return
@@ -332,10 +529,10 @@ export class LocalGameHost {
       const delay =
         this.animSpeed === 'off'
           ? 0
-          : Math.round((350 + this.nextRand() * 450) * animDurationMultiplier(this.animSpeed))
+          : Math.round((550 + this.nextRand() * 450) * animDurationMultiplier(this.animSpeed))
       this.catchTimer = setTimeout(() => {
         this.catchTimer = null
-        if (this.disposed || !this.game || this.game.is_over()) return
+        if (this.disposed || !this.game || this.paused || this.game.is_over()) return
         const stillCan = this.game
           .legal(botSeat)
           .some((a) => a.type === 'catch_uno' && a.target === target)

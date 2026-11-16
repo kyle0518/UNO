@@ -167,7 +167,7 @@ export function ResultsPage() {
                 const topSeat = item.rankings[0] ?? 0
                 const topName =
                   item.playerNames[topSeat] ?? t('game.playerAi', { seat: topSeat })
-                const itemModeKey = `mode.${item.config.mode}` as TranslationKey
+                const itemModeKey = `mode.${item.config.mode_id}` as TranslationKey
                 return (
                   <li
                     key={item.id}
