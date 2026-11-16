@@ -143,6 +143,32 @@ export function loadReplayById(id: string): LocalReplayRecord | null {
   return last && last.id === id ? last : null
 }
 
+const DAILY_PENDING_KEY = 'uno-daily-pending'
+
+export function saveDailyPending(date: string): void {
+  try {
+    sessionStorage.setItem(DAILY_PENDING_KEY, date)
+  } catch {
+    // ignore
+  }
+}
+
+export function loadDailyPending(): string | null {
+  try {
+    return sessionStorage.getItem(DAILY_PENDING_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function clearDailyPending(): void {
+  try {
+    sessionStorage.removeItem(DAILY_PENDING_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export function resetSoloSessionForTest(): void {
   inMemoryPending = null
   inMemoryLastResult = null

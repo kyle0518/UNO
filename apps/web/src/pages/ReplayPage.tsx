@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { apiClient } from '@/api/client'
 import { UnoCard } from '@/components/card/UnoCard'
 import { COLOR_CSS_VAR, COLOR_LABELS } from '@/components/card/cardMeta'
 import { AppShell } from '@/components/layout/AppShell'
@@ -23,9 +24,42 @@ export function ReplayPage() {
   const replayId = id ?? 'local'
   const { t, lang } = useTranslation()
 
-  const [record] = useState<LocalReplayRecord | null>(() =>
+  const [record, setRecord] = useState<LocalReplayRecord | null>(() =>
     loadReplayById(replayId),
   )
+
+  // 伺服器重播（T8.3）：本地找不到且 id 為數字（match_id）時向 /api/matches/:id/replay 取。
+  useEffect(() => {
+    if (record) return
+    if (!/^\d+$/.test(replayId)) return
+    let active = true
+    void apiClient
+      .matchReplay(Number(replayId))
+      .then((data) => {
+        if (!active) return
+        const replay = data as {
+          config: LocalReplayRecord['config']
+          seed: number
+          players: { name: string }[]
+          steps: unknown[]
+        }
+        setRecord({
+          id: replayId,
+          replayJson: JSON.stringify(data),
+          config: replay.config,
+          seed: replay.seed,
+          playerNames: replay.players.map((p) => p.name),
+          rankings: [],
+          scores: [],
+          stepsCount: replay.steps.length,
+          savedAt: '',
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [record, replayId])
   const [stepIndex, setStepIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<(typeof SPEED_OPTIONS)[number]>(1)

@@ -1,26 +1,25 @@
 import { Route, Routes } from 'react-router'
 import type { TranslationKey } from '@/i18n'
+import { CreateRoomPage } from '@/pages/CreateRoomPage'
+import { DailyPage } from '@/pages/DailyPage'
 import { DevCardsPage } from '@/pages/DevCardsPage'
 import { GamePage } from '@/pages/GamePage'
 import { HomePage } from '@/pages/HomePage'
+import { JoinRoomPage } from '@/pages/JoinRoomPage'
+import { LeaderboardPage } from '@/pages/LeaderboardPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { ReplayPage } from '@/pages/ReplayPage'
 import { ResultsPage } from '@/pages/ResultsPage'
+import { RoomPage } from '@/pages/RoomPage'
 import { RulesPage } from '@/pages/RulesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SoloSetupPage } from '@/pages/SoloSetupPage'
+import { StatsPage } from '@/pages/StatsPage'
 
 const PLACEHOLDER_ROUTES: { path: string; titleKey: TranslationKey }[] = [
-  { path: '/create', titleKey: 'route.createRoom' },
-  { path: '/join', titleKey: 'route.joinRoom' },
-  { path: '/r/:code', titleKey: 'route.room' },
-  { path: '/stats', titleKey: 'route.stats' },
-  { path: '/stats/:userId', titleKey: 'route.statsUser' },
-  { path: '/leaderboard', titleKey: 'route.leaderboard' },
   { path: '/lab', titleKey: 'route.lab' },
-  { path: '/daily', titleKey: 'route.daily' },
 ]
 
 export function AppRoutes() {
@@ -29,6 +28,13 @@ export function AppRoutes() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/create" element={<CreateRoomPage />} />
+      <Route path="/join" element={<JoinRoomPage />} />
+      <Route path="/r/:code" element={<RoomPage />} />
+      <Route path="/daily" element={<DailyPage />} />
+      <Route path="/stats" element={<StatsPage />} />
+      <Route path="/stats/:userId" element={<StatsPage />} />
+      <Route path="/leaderboard" element={<LeaderboardPage />} />
       <Route path="/solo" element={<SoloSetupPage />} />
       <Route path="/game" element={<GamePage />} />
       <Route path="/results" element={<ResultsPage />} />

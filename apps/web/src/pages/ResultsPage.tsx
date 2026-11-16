@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { apiClient, type DailySubmitResult } from '@/api/client'
+import { useAuth } from '@/auth/useAuth'
 import { AppShell } from '@/components/layout/AppShell'
 import {
+  clearDailyPending,
   generateSeed,
+  loadDailyPending,
   loadLastSoloResult,
   loadLocalReplays,
   savePendingSoloMatch,
@@ -12,10 +16,29 @@ import { useTranslation, type TranslationKey } from '@/i18n'
 export function ResultsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const token = useAuth((s) => s.token)
   const [result] = useState(() => loadLastSoloResult())
   const [recentReplays] = useState(() => loadLocalReplays())
   const [replayOpen, setReplayOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [dailyResult, setDailyResult] = useState<DailySubmitResult | null>(null)
+  const dailySubmittedRef = useRef(false)
+
+  useEffect(() => {
+    if (!result || !token || dailySubmittedRef.current) return
+    if (!loadDailyPending()) return
+    dailySubmittedRef.current = true
+    clearDailyPending()
+    try {
+      const replay: unknown = JSON.parse(result.replayJson)
+      void apiClient
+        .submitDaily(replay)
+        .then(setDailyResult)
+        .catch(() => undefined)
+    } catch {
+      // ignore
+    }
+  }, [result, token])
 
   if (!result) {
     return (
@@ -89,6 +112,13 @@ export function ResultsPage() {
           <p className="mt-2 text-xs text-text-muted">
             {t('results.eloPlaceholder')}
           </p>
+          {dailyResult && (
+            <p className="mt-3 text-sm font-bold text-accent">
+              {t('daily.score', { score: dailyResult.score })} ·{' '}
+              {t('daily.rank', { rank: dailyResult.rank })} ·{' '}
+              {dailyResult.counted ? t('daily.counted') : t('daily.notCounted')}
+            </p>
+          )}
         </section>
 
         <section className="rounded-3xl uno-surface p-4">

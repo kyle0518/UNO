@@ -20,6 +20,41 @@ export interface ServerInfoResponse {
   port: number
 }
 
+export interface ModeStats {
+  games: number
+  wins: number
+  elo: number
+}
+
+export interface EloHistoryEntry {
+  t: string
+  mode_id: string
+  elo: number
+}
+
+export interface UserStatsResponse {
+  games: number
+  wins: number
+  by_mode: Record<string, ModeStats>
+  elo_history: EloHistoryEntry[]
+}
+
+export interface UserMatchSummary {
+  match_id: number
+  mode_id: string
+  created_at: string
+  rank: number
+  num_players: number
+  score: number
+}
+
+export interface LeaderboardEntry {
+  user: ApiUser
+  elo: number
+  games: number
+  wins: number
+}
+
 export class ApiError extends Error {
   readonly status: number
 
@@ -123,4 +158,58 @@ export const apiClient = {
   logout(): Promise<void> {
     return apiRequest<void>('/api/logout', { method: 'POST' })
   },
+  userStats(userId: number): Promise<UserStatsResponse> {
+    return apiRequest<UserStatsResponse>(`/api/users/${userId}/stats`)
+  },
+  userMatches(userId: number, limit = 50, offset = 0): Promise<UserMatchSummary[]> {
+    return apiRequest<UserMatchSummary[]>(
+      `/api/users/${userId}/matches?limit=${limit}&offset=${offset}`,
+    )
+  },
+  matchReplay(matchId: number): Promise<unknown> {
+    return apiRequest<unknown>(`/api/matches/${matchId}/replay`)
+  },
+  leaderboard(mode = 'classic', limit = 50): Promise<LeaderboardEntry[]> {
+    return apiRequest<LeaderboardEntry[]>(
+      `/api/leaderboard?mode=${encodeURIComponent(mode)}&limit=${limit}`,
+    )
+  },
+  daily(): Promise<DailyInfo> {
+    return apiRequest<DailyInfo>('/api/daily')
+  },
+  submitDaily(replay: unknown): Promise<DailySubmitResult> {
+    return apiRequest<DailySubmitResult>('/api/daily/submit', {
+      method: 'POST',
+      body: JSON.stringify(replay),
+    })
+  },
+  submitSoloMatch(replay: unknown): Promise<{ match_id: number }> {
+    return apiRequest<{ match_id: number }>('/api/matches/solo', {
+      method: 'POST',
+      body: JSON.stringify(replay),
+    })
+  },
+  models(): Promise<ModelInfo[]> {
+    return apiRequest<ModelInfo[]>('/api/models')
+  },
+}
+
+export interface DailyInfo {
+  date: string
+  seed: number
+  config: import('@/generated/RuleConfig').RuleConfig
+  my_best: number | null
+}
+
+export interface DailySubmitResult {
+  score: number
+  counted: boolean
+  rank: number
+}
+
+export interface ModelInfo {
+  name: string
+  mode_id?: string
+  num_players?: number
+  [key: string]: unknown
 }
