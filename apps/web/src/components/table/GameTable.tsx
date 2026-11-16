@@ -187,7 +187,7 @@ export function GameTable({
               <div className="uno-arena-felt" />
             </div>
 
-            {opponents.length > (isLandscapeDesktop ? 5 : 3) ? (
+            {isShortViewport || opponents.length > (isLandscapeDesktop ? 5 : 3) ? (
               <div className="uno-seats-rail">
                 <OpponentStrip
                   opponents={opponents}

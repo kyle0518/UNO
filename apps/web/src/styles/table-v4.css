@@ -611,3 +611,64 @@
     transition: none;
   }
 }
+
+/* Landscape phones: keep seat controls in a left rail instead of letting
+   their labels cover the draw/discard piles in the very shallow felt. */
+@media (max-height: 520px) and (min-width: 600px) {
+  .uno-seats-rail {
+    inset: 8px auto 8px 18px;
+    width: 174px;
+    display: flex;
+    align-items: center;
+  }
+
+  .uno-seats-rail > section {
+    width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 0 2px;
+  }
+
+  .uno-seats-rail .uno-seat {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 3px 2px;
+  }
+
+  .uno-seats-rail .uno-seat[data-compact="true"] .uno-seat-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .uno-seats-rail .uno-seat-portrait {
+    flex: none;
+  }
+
+  .uno-seats-rail .uno-seat-meta {
+    min-width: 0;
+    max-width: 108px;
+  }
+
+  .uno-seats-rail .uno-seat-name {
+    max-width: 86px;
+  }
+
+  .uno-seats-rail .uno-seat-back-preview {
+    display: none;
+  }
+
+  .uno-table-center {
+    left: 55%;
+  }
+}

@@ -102,12 +102,19 @@ async function checkPhoneGame(
       expect(delta, `${label}: uneven resting card heights`).toBeLessThanOrEqual(3)
     }
 
+    // An overlapping card is intentionally actionable by its exposed left
+    // strip, not by its covered center. Tap the visible strip like a person.
     const playable = page.locator('[data-testid="player-hand"] [data-playable="true"]').first()
     if (await playable.count()) {
-      await playable.locator('button').tap()
+      await playable.locator('button').tap({
+        position: { x: 12, y: 28 },
+        timeout: 5_000,
+      })
       await expect(playable).toHaveAttribute('data-selected', 'true')
     } else {
-      await page.getByTestId('draw-pile').tap()
+      const draw = page.getByTestId('draw-pile')
+      await expect(draw).toBeEnabled({ timeout: 10_000 })
+      await draw.tap({ timeout: 5_000 })
     }
 
     expect(browserErrors, `${label}: browser errors`).toEqual([])

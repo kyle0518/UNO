@@ -162,7 +162,9 @@ export function Hand({
   const n = sortedCards.length
   const availWidth = Math.max(containerWidth - 24, cardWidth)
   const rawStep = n <= 1 ? cardWidth : (availWidth - cardWidth) / (n - 1)
-  const minStep = cardWidth * 0.42
+  // A horizontally overlapping phone hand still needs a touchable exposed
+  // edge on every card (at least 44 CSS pixels); enable scrolling if needed.
+  const minStep = compact ? Math.min(cardWidth, 44) : cardWidth * 0.42
   const maxStep = cardWidth * 0.75
   const scrollable = n > 1 && rawStep < minStep
   const step =
