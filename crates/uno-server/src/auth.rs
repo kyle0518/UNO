@@ -31,7 +31,23 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, ApiError> {
     let parsed_hash = PasswordHash::new(hash)
         .map_err(|e| ApiError::Internal(format!("解析密碼雜湊失敗: {e}")))?;
     let argon2 = Argon2::default();
-    Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    Ok(argon2
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
+}
+
+/// 在 blocking 執行緒池執行 Argon2 雜湊，避免卡住 async worker。
+pub async fn hash_password_async(password: String) -> Result<String, ApiError> {
+    tokio::task::spawn_blocking(move || hash_password(&password))
+        .await
+        .map_err(|e| ApiError::Internal(format!("密碼雜湊任務失敗: {e}")))?
+}
+
+/// 在 blocking 執行緒池執行 Argon2 驗證，避免卡住 async worker。
+pub async fn verify_password_async(password: String, hash: String) -> Result<bool, ApiError> {
+    tokio::task::spawn_blocking(move || verify_password(&password, &hash))
+        .await
+        .map_err(|e| ApiError::Internal(format!("密碼驗證任務失敗: {e}")))?
 }
 
 /// 驗證使用者名稱格式（3–20 字元，允許英數字、底線、中文字元）。
@@ -39,7 +55,9 @@ pub fn validate_username(username: &str) -> Result<(), ApiError> {
     let trimmed = username.trim();
     let char_count = trimmed.chars().count();
     if !(3..=20).contains(&char_count) {
-        return Err(ApiError::BadRequest("使用者名稱長度需介於 3 至 20 字".to_string()));
+        return Err(ApiError::BadRequest(
+            "使用者名稱長度需介於 3 至 20 字".to_string(),
+        ));
     }
 
     for c in trimmed.chars() {
@@ -54,10 +72,16 @@ pub fn validate_username(username: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// 驗證密碼格式（至少 6 字元）。
+/// 驗證密碼格式（SPEC：密碼至少 6 字元；上限 128 字元防 Argon2 成本放大）。
 pub fn validate_password(password: &str) -> Result<(), ApiError> {
-    if password.chars().count() < 6 {
+    let count = password.chars().count();
+    if count < 6 {
         return Err(ApiError::BadRequest("密碼長度至少需 6 個字元".to_string()));
+    }
+    if count > 128 {
+        return Err(ApiError::BadRequest(
+            "密碼長度不得超過 128 個字元".to_string(),
+        ));
     }
     Ok(())
 }
@@ -66,7 +90,9 @@ pub fn validate_password(password: &str) -> Result<(), ApiError> {
 pub fn validate_nickname(nickname: &str) -> Result<(), ApiError> {
     let count = nickname.trim().chars().count();
     if count == 0 || count > 20 {
-        return Err(ApiError::BadRequest("暱稱長度需介於 1 至 20 字".to_string()));
+        return Err(ApiError::BadRequest(
+            "暱稱長度需介於 1 至 20 字".to_string(),
+        ));
     }
     Ok(())
 }
@@ -92,9 +118,8 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = extract_bearer_token(parts).ok_or_else(|| {
-            ApiError::Unauthorized("缺少或無效的 Authorization 標頭".to_string())
-        })?;
+        let token = extract_bearer_token(parts)
+            .ok_or_else(|| ApiError::Unauthorized("缺少或無效的 Authorization 標頭".to_string()))?;
 
         let db = state.db().clone();
         let user = db
@@ -160,6 +185,7 @@ mod tests {
         assert!(validate_username("alice@home").is_err()); // 特殊符號不允許
         assert!(validate_password("123456").is_ok());
         assert!(validate_password("12345").is_err()); // 小於 6
+        assert!(validate_password(&"a".repeat(129)).is_err()); // 超過 128 上限
         assert!(validate_nickname("UNO大師").is_ok());
         assert!(validate_nickname("").is_err());
     }

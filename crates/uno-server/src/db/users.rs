@@ -15,12 +15,11 @@ pub struct User {
     pub created_at: String,
 }
 
-/// 公開的使用者資訊（不含密碼雜湊）。
+/// 公開的使用者資訊（不含密碼雜湊，符合 INTERFACES §7 的 `UserPublic`）。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PublicUser {
     pub id: i64,
-    pub username: Option<String>,
-    pub display_name: String,
+    pub name: String,
     pub is_guest: bool,
 }
 
@@ -28,11 +27,27 @@ impl From<User> for PublicUser {
     fn from(user: User) -> Self {
         Self {
             id: user.id,
-            username: user.username,
-            display_name: user.display_name,
+            name: user.display_name,
             is_guest: user.is_guest,
         }
     }
+}
+
+/// 正規化使用者名稱（去空白並轉小寫），使大小寫不影響唯一性與登入查詢。
+pub fn normalize_username(username: &str) -> String {
+    username.trim().to_lowercase()
+}
+
+/// 雜湊 session token；資料庫只存雜湊值，外洩時無法直接劫持 session。
+pub fn hash_token(token: &str) -> String {
+    use blake2::Digest;
+    let mut hasher = blake2::Blake2b512::new();
+    hasher.update(token.as_bytes());
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// 建立訪客使用者。
@@ -56,7 +71,7 @@ pub fn create_user(
     display_name: &str,
     password_hash: &str,
 ) -> Result<User, DbError> {
-    let u = username.trim();
+    let u = normalize_username(username);
     let d = display_name.trim();
     if u.is_empty() {
         return Err(DbError::InvalidData("使用者名稱不得為空".to_string()));
@@ -78,7 +93,7 @@ pub fn create_user(
         Err(rusqlite::Error::SqliteFailure(err, _))
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            Err(DbError::UsernameAlreadyExists(u.to_string()))
+            Err(DbError::UsernameAlreadyExists(u.clone()))
         }
         Err(err) => Err(DbError::Sqlite(err)),
     }
@@ -97,7 +112,7 @@ pub fn upgrade_guest(
         return Err(DbError::InvalidData("該帳號已經是正式會員".to_string()));
     }
 
-    let u = username.trim();
+    let u = normalize_username(username);
     if u.is_empty() {
         return Err(DbError::InvalidData("使用者名稱不得為空".to_string()));
     }
@@ -118,7 +133,7 @@ pub fn upgrade_guest(
         Err(rusqlite::Error::SqliteFailure(err, _))
             if err.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
-            Err(DbError::UsernameAlreadyExists(u.to_string()))
+            Err(DbError::UsernameAlreadyExists(u.clone()))
         }
         Err(err) => Err(DbError::Sqlite(err)),
     }
@@ -145,13 +160,14 @@ pub fn find_by_id(conn: &Connection, id: i64) -> Result<Option<User>, DbError> {
     Ok(user)
 }
 
-/// 依使用者名稱查詢使用者。
+/// 依使用者名稱查詢使用者（大小寫不敏感，比對正規化後的值）。
 pub fn find_by_username(conn: &Connection, username: &str) -> Result<Option<User>, DbError> {
+    let normalized = normalize_username(username);
     let mut stmt = conn.prepare(
         "SELECT id, username, display_name, password_hash, is_guest, created_at FROM users WHERE username = ?;",
     )?;
     let user = stmt
-        .query_row(params![username], |row| {
+        .query_row(params![normalized], |row| {
             let is_guest_int: i32 = row.get(4)?;
             Ok(User {
                 id: row.get(0)?,
@@ -175,21 +191,17 @@ pub fn create_session(
 ) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?);",
-        params![token, user_id, expires_at],
+        params![hash_token(token), user_id, expires_at],
     )?;
     Ok(())
 }
 
 /// 建立 30 天有效期的 Session Token（使用 SQLite datetime('now', '+30 days')）。
-pub fn create_session_30_days(
-    conn: &Connection,
-    token: &str,
-    user_id: i64,
-) -> Result<(), DbError> {
+pub fn create_session_30_days(conn: &Connection, token: &str, user_id: i64) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO sessions (token, user_id, expires_at)
          VALUES (?, ?, datetime('now', '+30 days'));",
-        params![token, user_id],
+        params![hash_token(token), user_id],
     )?;
     Ok(())
 }
@@ -203,7 +215,7 @@ pub fn find_user_by_token(conn: &Connection, token: &str) -> Result<Option<User>
          WHERE s.token = ? AND datetime(s.expires_at) > datetime('now');",
     )?;
     let user = stmt
-        .query_row(params![token], |row| {
+        .query_row(params![hash_token(token)], |row| {
             let is_guest_int: i32 = row.get(4)?;
             Ok(User {
                 id: row.get(0)?,
@@ -220,7 +232,10 @@ pub fn find_user_by_token(conn: &Connection, token: &str) -> Result<Option<User>
 
 /// 刪除指定 Token 的 Session（登出）。
 pub fn delete_session(conn: &Connection, token: &str) -> Result<bool, DbError> {
-    let count = conn.execute("DELETE FROM sessions WHERE token = ?;", params![token])?;
+    let count = conn.execute(
+        "DELETE FROM sessions WHERE token = ?;",
+        params![hash_token(token)],
+    )?;
     Ok(count > 0)
 }
 
@@ -295,5 +310,46 @@ mod tests {
         let deleted = delete_session(&conn, "token_valid").expect("delete");
         assert!(deleted);
         assert!(find_user_by_token(&conn, "token_valid").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_username_case_insensitive_uniqueness_and_lookup() {
+        let conn = setup_test_db();
+        let user = create_user(&conn, "Alice_01", "Alice", "hash").expect("create");
+        assert_eq!(user.username.as_deref(), Some("alice_01"));
+
+        let dup = create_user(&conn, "ALICE_01", "Alice2", "hash");
+        assert!(matches!(dup, Err(DbError::UsernameAlreadyExists(_))));
+
+        let found = find_by_username(&conn, "aLiCe_01").expect("lookup");
+        assert_eq!(found.map(|u| u.id), Some(user.id));
+    }
+
+    #[test]
+    fn test_session_token_stored_hashed_not_plaintext() {
+        let conn = setup_test_db();
+        let user = create_user(&conn, "bob", "Bob", "hash").expect("user");
+        create_session(&conn, "plain-token-123", user.id, "2099-01-01 00:00:00").expect("session");
+
+        let stored: String = conn
+            .query_row("SELECT token FROM sessions;", [], |row| row.get(0))
+            .expect("stored token");
+        assert_ne!(stored, "plain-token-123");
+        assert_eq!(stored, hash_token("plain-token-123"));
+        assert!(find_user_by_token(&conn, "plain-token-123")
+            .unwrap()
+            .is_some());
+    }
+
+    #[test]
+    fn test_public_user_serializes_to_spec_shape() {
+        let public: PublicUser = create_user(&setup_test_db(), "carol", "Carol", "h")
+            .expect("user")
+            .into();
+        let value = serde_json::to_value(&public).expect("serialize");
+        assert_eq!(value["name"], "Carol");
+        assert!(value.get("display_name").is_none());
+        assert!(value.get("username").is_none());
+        assert!(value.get("password_hash").is_none());
     }
 }

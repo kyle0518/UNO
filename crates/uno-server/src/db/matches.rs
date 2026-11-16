@@ -205,6 +205,7 @@ pub fn list_user_matches(
 }
 
 /// 記錄每日挑戰分數：同一使用者每日僅首次提交計入榜單 (counted=true)，重複提交 counted=false。
+/// 以單一 `INSERT ... ON CONFLICT DO NOTHING` 原子地決定是否計入，避免並發重複提交撞主鍵。
 pub fn record_daily_score(
     conn: &Connection,
     user_id: i64,
@@ -212,23 +213,24 @@ pub fn record_daily_score(
     score: i32,
     match_id: i64,
 ) -> Result<DailyScoreResult, DbError> {
-    let existing = get_daily_score(conn, user_id, date)?;
-    let (counted, final_score) = match existing {
-        Some(old_score) => (false, old_score),
-        None => {
-            conn.execute(
-                "INSERT INTO daily_scores (user_id, date, score, match_id) VALUES (?, ?, ?, ?);",
-                params![user_id, date, score, match_id],
-            )?;
-            (true, score)
-        }
-    };
+    let inserted = conn.execute(
+        "INSERT INTO daily_scores (user_id, date, score, match_id) VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, date) DO NOTHING;",
+        params![user_id, date, score, match_id],
+    )?;
+    let counted = inserted == 1;
 
-    // 計算今日名次：分數愈低愈佳 (UNO 扣分制)，同分依 match_id ASC
+    let (final_score, final_match_id): (i32, i64) = conn.query_row(
+        "SELECT score, match_id FROM daily_scores WHERE user_id = ? AND date = ?;",
+        params![user_id, date],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    // 計算今日名次：分數愈低愈佳 (UNO 扣分制)，同分依 match_id ASC（與排行榜排序一致）
     let rank: u32 = conn.query_row(
         "SELECT COUNT(*) + 1 FROM daily_scores
-         WHERE date = ? AND (score < ? OR (score = ? AND user_id < ?));",
-        params![date, final_score, final_score, user_id],
+         WHERE date = ? AND (score < ? OR (score = ? AND match_id < ?));",
+        params![date, final_score, final_score, final_match_id],
         |row| row.get(0),
     )?;
 
@@ -273,8 +275,7 @@ pub fn get_daily_leaderboard(
         Ok(DailyLeaderboardEntry {
             user: PublicUser {
                 id: row.get(0)?,
-                username: row.get(1)?,
-                display_name: row.get(2)?,
+                name: row.get(2)?,
                 is_guest: is_guest_int != 0,
             },
             score: row.get(4)?,
@@ -402,5 +403,24 @@ mod tests {
         assert_eq!(lb[0].score, 15);
         assert_eq!(lb[1].user.id, u1.id);
         assert_eq!(lb[1].score, 45);
+    }
+
+    #[test]
+    fn test_daily_rank_tiebreak_matches_leaderboard_order() {
+        let conn = setup_test_db();
+        let u1 = create_user(&conn, "t1", "User T1", "h").expect("u1");
+        let u2 = create_user(&conn, "t2", "User T2", "h").expect("u2");
+        let today = "2026-11-14";
+
+        // 同分時先提交（match_id 較小）者名次在前，與排行榜的 match_id ASC 一致，
+        // 即使其 user_id 較大也相同。
+        let later = record_daily_score(&conn, u1.id, today, 30, 200).expect("u1 submit");
+        assert_eq!(later.rank, 1);
+        let earlier = record_daily_score(&conn, u2.id, today, 30, 100).expect("u2 submit");
+        assert_eq!(earlier.rank, 1);
+
+        let lb = get_daily_leaderboard(&conn, today, 10).expect("leaderboard");
+        assert_eq!(lb[0].user.id, u2.id);
+        assert_eq!(lb[1].user.id, u1.id);
     }
 }

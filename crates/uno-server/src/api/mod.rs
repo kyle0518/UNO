@@ -1,4 +1,7 @@
 pub mod auth;
+pub mod daily;
+pub mod matches_api;
+pub mod stats;
 pub mod users;
 
 use axum::http::StatusCode;
@@ -24,6 +27,9 @@ pub enum ApiError {
     NotFound(String),
 
     #[error("{0}")]
+    TooManyRequests(String),
+
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -34,7 +40,14 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(m) => (StatusCode::BAD_REQUEST, m.clone()),
             ApiError::Conflict(m) => (StatusCode::CONFLICT, m.clone()),
             ApiError::NotFound(m) => (StatusCode::NOT_FOUND, m.clone()),
-            ApiError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
+            ApiError::TooManyRequests(m) => (StatusCode::TOO_MANY_REQUESTS, m.clone()),
+            ApiError::Internal(m) => {
+                tracing::error!(error = %m, "內部伺服器錯誤");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
         };
         (status, Json(serde_json::json!({ "error": msg }))).into_response()
     }
@@ -63,4 +76,13 @@ pub fn create_api_router() -> Router<AppState> {
         .route("/login", post(auth::login))
         .route("/logout", post(auth::logout))
         .route("/me", get(users::me))
+        .route("/users/{id}/stats", get(stats::user_stats))
+        .route("/users/{id}/matches", get(stats::user_matches))
+        .route("/matches/{id}/replay", get(stats::match_replay))
+        .route("/leaderboard", get(stats::leaderboard))
+        .route("/rooms", get(stats::public_rooms))
+        .route("/matches/solo", post(matches_api::submit_solo_match))
+        .route("/daily", get(daily::get_daily))
+        .route("/daily/submit", post(daily::submit_daily))
+        .route("/models", get(daily::list_models))
 }

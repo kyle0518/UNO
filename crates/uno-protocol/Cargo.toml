@@ -4,3 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+serde.workspace = true
+ts-rs.workspace = true
+uno-core = { path = "../uno-core" }
+
+[dev-dependencies]
+serde_json.workspace = true

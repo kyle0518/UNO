@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::ApiError;
 use crate::auth::{
-    self, generate_token, hash_password, validate_nickname, validate_password, validate_username,
-    verify_password, OptionalAuthUser,
+    self, generate_token, hash_password_async, validate_nickname, validate_password,
+    validate_username, verify_password_async, OptionalAuthUser,
 };
 use crate::db::users::{self, PublicUser};
 use crate::state::AppState;
@@ -39,11 +39,25 @@ pub struct AuthResponse {
     pub user: PublicUser,
 }
 
+fn check_rate_limit(state: &AppState, key: &str) -> Result<(), ApiError> {
+    if state.check_auth_rate_limit(key) {
+        Ok(())
+    } else {
+        Err(ApiError::TooManyRequests(
+            "請求過於頻繁，請稍後再試".to_string(),
+        ))
+    }
+}
+
 /// 訪客快速登入。
 pub async fn guest(
     State(state): State<AppState>,
     Json(req): Json<GuestRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
+    check_rate_limit(
+        &state,
+        &format!("guest:{}", req.nickname.trim().to_lowercase()),
+    )?;
     validate_nickname(&req.nickname)?;
     let nickname = req.nickname.trim().to_string();
     let token = generate_token();
@@ -70,11 +84,15 @@ pub async fn register(
     opt_user: OptionalAuthUser,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
+    check_rate_limit(
+        &state,
+        &format!("register:{}", req.username.trim().to_lowercase()),
+    )?;
     validate_username(&req.username)?;
     validate_password(&req.password)?;
 
     let username = req.username.trim().to_string();
-    let password_hash = hash_password(&req.password)?;
+    let password_hash = hash_password_async(req.password.clone()).await?;
     let token = generate_token();
     let token_clone = token.clone();
 
@@ -119,6 +137,10 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
+    check_rate_limit(
+        &state,
+        &format!("login:{}", req.username.trim().to_lowercase()),
+    )?;
     validate_username(&req.username)?;
     validate_password(&req.password)?;
 
@@ -134,7 +156,7 @@ pub async fn login(
         .as_deref()
         .ok_or_else(|| ApiError::Unauthorized("帳號或密碼錯誤".to_string()))?;
 
-    let is_valid = verify_password(&req.password, hash)?;
+    let is_valid = verify_password_async(req.password.clone(), hash.to_string()).await?;
     if !is_valid {
         return Err(ApiError::Unauthorized("帳號或密碼錯誤".to_string()));
     }

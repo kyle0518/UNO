@@ -6,7 +6,7 @@ use crate::db::DbError;
 pub const MIGRATIONS_SQL: &str = r#"
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE,
+  username TEXT COLLATE NOCASE UNIQUE,
   display_name TEXT NOT NULL,
   password_hash TEXT,
   is_guest INTEGER NOT NULL DEFAULT 1,

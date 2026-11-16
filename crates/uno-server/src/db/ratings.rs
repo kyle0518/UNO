@@ -296,8 +296,7 @@ pub fn get_leaderboard(
         Ok(LeaderboardEntry {
             user: PublicUser {
                 id: row.get(0)?,
-                username: row.get(1)?,
-                display_name: row.get(2)?,
+                name: row.get(2)?,
                 is_guest: is_guest_int != 0,
             },
             elo: row.get(4)?,

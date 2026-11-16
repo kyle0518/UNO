@@ -3,19 +3,22 @@ pub mod auth;
 mod config;
 pub mod db;
 mod lan;
+pub mod rooms;
 mod state;
 mod static_files;
+pub mod ws;
 
 use std::process;
 
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::http::{header, Method};
 use axum::routing::get;
 use axum::{Json, Router};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -56,10 +59,16 @@ pub fn build_router(state: AppState) -> Router {
     let web_dir = state.config().web_dir.clone();
 
     Router::new()
+        .route("/ws", axum::routing::get(ws::ws_handler))
         .nest("/api", api_router)
         .nest_service("/models", static_files::models_service(&models_dir))
         .fallback_service(static_files::spa_service(&web_dir))
-        .layer(CorsLayer::permissive())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
@@ -124,6 +133,24 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_path = config.data_dir.join("uno.db");
     let db = db::Db::open(&db_path)?;
+
+    // 每小時清理過期 session（首次 tick 立即執行，兼作啟動清理）。
+    let cleanup_db = db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            match cleanup_db
+                .run(|conn| db::users::delete_expired_sessions(conn))
+                .await
+            {
+                Ok(n) if n > 0 => tracing::info!(deleted = n, "已清理過期 session"),
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "清理過期 session 失敗"),
+            }
+        }
+    });
+
     let state = AppState::new(config, bound_port, lan_urls, db);
     axum::serve(listener, build_router(state))
         .with_graceful_shutdown(shutdown_signal())
@@ -342,7 +369,7 @@ mod tests {
         let guest_data: api::auth::AuthResponse =
             serde_json::from_slice(&guest_bytes).expect("parse auth resp");
         assert!(guest_data.user.is_guest);
-        assert_eq!(guest_data.user.display_name, "訪客007");
+        assert_eq!(guest_data.user.name, "訪客007");
 
         // 2. 訪客升級為正式帳號 (帶訪客 Token)
         let upgrade_resp = app
@@ -353,7 +380,9 @@ mod tests {
                     .uri("/api/register")
                     .header("authorization", format!("Bearer {}", guest_data.token))
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"username":"ming_pro","password":"password123"}"#))
+                    .body(Body::from(
+                        r#"{"username":"ming_pro","password":"password123"}"#,
+                    ))
                     .expect("req"),
             )
             .await
@@ -366,7 +395,7 @@ mod tests {
             serde_json::from_slice(&upgrade_bytes).expect("parse upgrade resp");
         assert!(!upgrade_data.user.is_guest);
         assert_eq!(upgrade_data.user.id, guest_data.user.id);
-        assert_eq!(upgrade_data.user.username.as_deref(), Some("ming_pro"));
+        assert_eq!(upgrade_data.user.name, "訪客007");
 
         // 3. 呼叫 /api/me 驗證個人資料
         let me_resp = app
@@ -382,11 +411,13 @@ mod tests {
             .await
             .expect("me resp");
         assert_eq!(me_resp.status(), StatusCode::OK);
-        let me_bytes = to_bytes(me_resp.into_body(), 1024 * 64).await.expect("bytes");
+        let me_bytes = to_bytes(me_resp.into_body(), 1024 * 64)
+            .await
+            .expect("bytes");
         let me_data: api::users::MeResponse =
             serde_json::from_slice(&me_bytes).expect("parse me resp");
         assert_eq!(me_data.user.id, guest_data.user.id);
-        assert_eq!(me_data.user.username.as_deref(), Some("ming_pro"));
+        assert_eq!(me_data.user.name, "訪客007");
 
         // 4. 重複帳號註冊回傳 409 Conflict
         let conflict_resp = app
@@ -396,7 +427,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/register")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"username":"ming_pro","password":"password456"}"#))
+                    .body(Body::from(
+                        r#"{"username":"ming_pro","password":"password456"}"#,
+                    ))
                     .expect("req"),
             )
             .await
@@ -411,7 +444,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/login")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"username":"ming_pro","password":"wrong_password"}"#))
+                    .body(Body::from(
+                        r#"{"username":"ming_pro","password":"wrong_password"}"#,
+                    ))
                     .expect("req"),
             )
             .await
@@ -426,16 +461,37 @@ mod tests {
                     .method("POST")
                     .uri("/api/login")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"username":"ming_pro","password":"password123"}"#))
+                    .body(Body::from(
+                        r#"{"username":"ming_pro","password":"password123"}"#,
+                    ))
                     .expect("req"),
             )
             .await
             .expect("login resp");
         assert_eq!(login_resp.status(), StatusCode::OK);
-        let login_bytes = to_bytes(login_resp.into_body(), 1024 * 64).await.expect("bytes");
+        let login_bytes = to_bytes(login_resp.into_body(), 1024 * 64)
+            .await
+            .expect("bytes");
         let login_data: api::auth::AuthResponse =
             serde_json::from_slice(&login_bytes).expect("parse login resp");
-        assert_eq!(login_data.user.username.as_deref(), Some("ming_pro"));
+        assert_eq!(login_data.user.name, "訪客007");
+
+        // 6b. 使用者名稱大小寫不敏感：大寫帳號也能登入
+        let upper_login_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"username":"MING_PRO","password":"password123"}"#,
+                    ))
+                    .expect("req"),
+            )
+            .await
+            .expect("upper login resp");
+        assert_eq!(upper_login_resp.status(), StatusCode::OK);
 
         // 7. 登出
         let logout_resp = app
@@ -465,5 +521,31 @@ mod tests {
             .await
             .expect("after logout resp");
         assert_eq!(after_logout_me.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn api_login_rate_limit_returns_429() {
+        let tmp = TempDir::new("auth-ratelimit");
+        let app = build_router(test_state(tmp.path.join("web"), tmp.path.join("models")));
+
+        let mut last_status = StatusCode::OK;
+        for _ in 0..11 {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/login")
+                        .header("content-type", "application/json")
+                        .body(Body::from(
+                            r#"{"username":"no_such_user","password":"password123"}"#,
+                        ))
+                        .expect("req"),
+                )
+                .await
+                .expect("login resp");
+            last_status = resp.status();
+        }
+        assert_eq!(last_status, StatusCode::TOO_MANY_REQUESTS);
     }
 }
