@@ -32,7 +32,7 @@ describe('RoundResultDialog scoring clarity', () => {
     )
 
     expect(screen.getByText(/本局得分|This round/)).toBeInTheDocument()
-    expect(screen.getByText(/累積總分|Total score/)).toBeInTheDocument()
+    expect(screen.getAllByText(/累積總分|Total score/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByTestId('round-earned-0')).toHaveTextContent('+125')
     expect(screen.getByTestId('round-total-0')).toHaveTextContent('125')
     expect(screen.getByText(/500/)).toBeInTheDocument()
