@@ -78,23 +78,23 @@ export function TopBar({
 
   return (
     <header
-      className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-black/25 px-3 py-1 backdrop-blur-md"
+      className="uno-game-header relative z-20 flex min-h-14 shrink-0 items-center justify-between gap-2 px-3 py-1.5 sm:px-5"
       style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
     >
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={onLeaveRequest}
-          className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 px-2.5 text-sm font-bold text-text-primary transition hover:bg-white/20 active:scale-95"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-2.5 text-lg font-bold text-text-primary transition hover:bg-white/10 active:scale-95"
           aria-label={t('game.menuLeave')}
         >
           ←
         </button>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-bold text-text-primary">
+          <span className="truncate text-sm font-bold tracking-[0.025em] text-text-primary sm:text-base">
             {modeLabel}
           </span>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-text-muted">
+          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-semibold text-text-muted">
             {t('game.roundLabel', { round })}
           </span>
           {mode === 'flip' && (
@@ -120,7 +120,7 @@ export function TopBar({
         <button
           type="button"
           onClick={() => setHandSort(handSort === 'color' ? 'number' : 'color')}
-          className="hidden min-h-11 items-center rounded-xl bg-white/10 px-2.5 text-xs font-semibold text-text-primary transition hover:bg-white/20 sm:flex"
+          className="hidden min-h-11 items-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-text-primary transition hover:bg-white/10 sm:flex"
         >
           {t('game.sortToggle', {
             mode:
@@ -133,7 +133,7 @@ export function TopBar({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-base transition hover:bg-white/20"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg transition hover:bg-white/10"
             aria-label={t('home.settings')}
           >
             ⚙
@@ -141,7 +141,7 @@ export function TopBar({
         ) : (
           <Link
             to="/settings"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-base transition hover:bg-white/20"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg transition hover:bg-white/10"
             aria-label={t('home.settings')}
           >
             ⚙

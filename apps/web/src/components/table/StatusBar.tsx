@@ -69,13 +69,12 @@ export function StatusBar({
         <p
           role="status"
           aria-live="polite"
+          data-active={isMyTurn && !lastError}
           className={[
-            'min-w-0 truncate rounded-full px-3 py-1 text-xs font-bold sm:text-sm',
+            'uno-status-pill min-w-0 truncate rounded-full px-3 py-1.5 text-xs font-semibold sm:text-sm',
             lastError
-              ? 'bg-uno-red/85 text-white'
-              : isMyTurn
-                ? 'bg-accent text-neutral-950 shadow'
-                : 'bg-black/35 text-text-primary',
+              ? 'border-uno-red bg-uno-red/20 text-text-primary'
+              : 'text-text-primary',
           ].join(' ')}
         >
           {lastError ?? statusText}
@@ -90,7 +89,7 @@ export function StatusBar({
       <button
         type="button"
         onClick={() => setHandSort(handSort === 'color' ? 'number' : 'color')}
-        className="flex min-h-11 shrink-0 items-center rounded-xl bg-white/10 px-3 text-xs font-semibold text-text-primary transition hover:bg-white/20 sm:hidden"
+        className="flex min-h-11 shrink-0 items-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-text-primary transition hover:bg-white/10 sm:hidden"
       >
         {t('game.sortToggle', {
           mode:

@@ -37,7 +37,7 @@ const STATE_CLASSES: Record<CardState, string> = {
     '-translate-y-2 ring-2 ring-accent shadow-[0_0_16px_var(--accent)]',
   selected:
     '-translate-y-6 ring-3 ring-accent shadow-[0_0_20px_var(--accent)]',
-  disabled: 'cursor-not-allowed bg-[#151a17]',
+  disabled: 'cursor-not-allowed',
 }
 
 export function UnoCard({
@@ -83,7 +83,7 @@ export function UnoCard({
 
   const content =
     state === 'disabled' ? (
-      <span className="block h-full w-full opacity-[0.58] saturate-[0.4]">
+      <span className="block h-full w-full opacity-[0.88] brightness-[0.96]">
         {contentInner}
       </span>
     ) : (

@@ -160,7 +160,7 @@ export function GameTable({
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className="uno-table-bg flex h-dvh w-full flex-col overflow-hidden text-text-primary select-none"
+        className="uno-game-screen relative flex h-dvh w-full flex-col overflow-hidden text-text-primary select-none"
         style={{ touchAction: 'manipulation' }}
       >
         <TopBar
@@ -181,7 +181,7 @@ export function GameTable({
             skippedSeat={skippedSeat}
             catchableSeats={catchableSeats}
             targetableSeats={targetableSeats}
-            compact={isShortViewport}
+            compact={true}
             onCatch={(target) => onSendAction({ type: 'catch_uno', target })}
             onSelectTarget={(target) =>
               onSendAction({ type: 'choose_target', target })
@@ -196,16 +196,19 @@ export function GameTable({
             }
           }}
           className={[
-            'relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3',
+            'uno-game-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3',
             isShortViewport ? 'py-0.5' : 'py-2',
           ].join(' ')}
         >
-          {isLandscapeDesktop && (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-10 inset-y-4 rounded-[999px] border border-white/15 bg-black/15 shadow-inner"
-            />
-          )}
+          <div
+            aria-hidden="true"
+            className={[
+              'uno-table-surface pointer-events-none absolute',
+              isLandscapeDesktop
+                ? 'inset-x-10 inset-y-5 rounded-[999px]'
+                : 'inset-x-3 inset-y-3 rounded-[44px]',
+            ].join(' ')}
+          />
 
           {isLandscapeDesktop &&
             opponents.map(({ player, name }, idx) => {
@@ -240,20 +243,22 @@ export function GameTable({
             direction={view.direction}
             large={isLandscapeDesktop}
           />
-          <CenterPile
-            topCard={view.top_card}
-            side={view.side}
-            activeColor={view.active_color}
-            drawPileSize={view.draw_pile_size}
-            drawPileTopBack={view.draw_pile_top_back}
-            pendingDraw={view.pending_draw}
-            canDraw={canDraw}
-            colorRipple={colorRipple}
-            flipping={flipping}
-            large={isLandscapeDesktop}
-            size={tableCardSize}
-            onDraw={() => onSendAction({ type: 'draw' })}
-          />
+          <div className="relative z-10 origin-center scale-[1.04] sm:scale-[1.08] lg:scale-[1.16]">
+            <CenterPile
+              topCard={view.top_card}
+              side={view.side}
+              activeColor={view.active_color}
+              drawPileSize={view.draw_pile_size}
+              drawPileTopBack={view.draw_pile_top_back}
+              pendingDraw={view.pending_draw}
+              canDraw={canDraw}
+              colorRipple={colorRipple}
+              flipping={flipping}
+              large={isLandscapeDesktop}
+              size={tableCardSize}
+              onDraw={() => onSendAction({ type: 'draw' })}
+            />
+          </div>
 
           <AnimatePresence>
             {unoPopup && (
@@ -288,18 +293,20 @@ export function GameTable({
           compact={isShortViewport}
         />
 
-        <Hand
-          cards={view.my_hand}
-          side={view.side}
-          legal={view.legal}
-          selectedCardId={selectedCardId}
-          compact={!isLandscapeDesktop}
-          cardSize={tableCardSize}
-          onSelectCard={onSelectCard}
-          onPlayAction={onSendAction}
-          onDraw={() => onSendAction({ type: 'draw' })}
-          onCallUno={() => onSendAction({ type: 'call_uno' })}
-        />
+        <div className="uno-hand-dock relative shrink-0">
+          <Hand
+            cards={view.my_hand}
+            side={view.side}
+            legal={view.legal}
+            selectedCardId={selectedCardId}
+            compact={!isLandscapeDesktop}
+            cardSize={tableCardSize}
+            onSelectCard={onSelectCard}
+            onPlayAction={onSendAction}
+            onDraw={() => onSendAction({ type: 'draw' })}
+            onCallUno={() => onSendAction({ type: 'call_uno' })}
+          />
+        </div>
 
         <UnoButton
           enabled={canCallUno}

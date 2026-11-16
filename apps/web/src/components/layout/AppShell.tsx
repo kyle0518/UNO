@@ -31,7 +31,7 @@ export function AppShell({
   return (
     <div className="flex min-h-dvh flex-col uno-table-bg text-text-primary">
       <header
-        className="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-2 uno-surface px-3"
+        className="uno-app-header sticky top-0 z-20 flex min-h-14 items-center justify-between gap-2 px-3"
         style={{
           paddingTop: 'env(safe-area-inset-top)',
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
@@ -61,7 +61,7 @@ export function AppShell({
           )}
         </div>
 
-        <h1 className="truncate text-center text-base font-bold tracking-wide">
+        <h1 className="truncate text-center text-sm font-bold tracking-[0.035em] sm:text-base">
           {title}
         </h1>
 
@@ -79,7 +79,7 @@ export function AppShell({
       </header>
 
       <main
-        className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-5"
+        className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6 sm:py-9"
         style={{
           paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))',
           paddingLeft: 'max(1rem, env(safe-area-inset-left))',

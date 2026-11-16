@@ -33,8 +33,8 @@ export function OpponentStrip({
     <section
       aria-label={t('game.opponents')}
       className={[
-        'flex shrink-0 items-start gap-2 overflow-x-auto px-3',
-        compact ? 'py-1' : 'py-2',
+        'mx-auto flex w-full shrink-0 items-center gap-2 overflow-x-auto px-3 sm:justify-center',
+        compact ? 'py-2' : 'py-3',
       ].join(' ')}
     >
       {opponents.map(({ player, name }) => (

@@ -202,7 +202,7 @@ export function SoloSetupPage() {
 
   return (
     <AppShell title={t('solo.title')} showBack>
-      <div className="mx-auto flex max-w-2xl flex-col gap-5 pb-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-10">
         <section>
           <h2 className="mb-2.5 text-sm font-bold uppercase tracking-wider text-text-muted">
             {t('solo.chooseMode')}
@@ -215,12 +215,11 @@ export function SoloSetupPage() {
                   key={m.id}
                   type="button"
                   data-mode={m.id}
+                  data-selected={selected}
                   onClick={() => handleSelectMode(m)}
                   className={[
-                    'flex min-h-16 items-start gap-3 rounded-2xl p-3.5 text-left transition',
-                    selected
-                      ? 'border-2 border-accent bg-accent/15 shadow-lg'
-                      : 'uno-surface hover:bg-white/15',
+                    'uno-mode-tile flex min-h-20 items-start gap-3 rounded-2xl p-4 text-left transition hover:-translate-y-0.5',
+                    selected ? 'ring-1 ring-accent/50' : 'hover:bg-surface-strong',
                   ].join(' ')}
                 >
                   <span className="text-2xl" aria-hidden="true">
@@ -248,7 +247,7 @@ export function SoloSetupPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl uno-surface p-4">
+        <section className="uno-page-panel p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="solo-players" className="text-sm font-bold">
               {t('solo.players', { count: numPlayers })}
@@ -326,7 +325,7 @@ export function SoloSetupPage() {
           data-testid="start-solo-game"
           disabled={!config || !wasmReady}
           onClick={handleStart}
-          className="min-h-12 w-full rounded-2xl bg-btn-green px-6 py-3.5 text-lg font-black text-white shadow-xl transition hover:brightness-110 disabled:opacity-50 active:scale-95"
+          className="uno-primary-action min-h-14 w-full rounded-2xl px-6 py-3.5 text-base font-bold active:scale-[0.99]"
         >
           {config ? t('solo.startGame') : t('solo.starting')}
         </button>

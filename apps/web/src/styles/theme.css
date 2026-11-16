@@ -42,15 +42,15 @@
   --flip-orange: #fb8c00;
   --flip-purple: #8e24aa;
 
-  --app-bg: #0b3d26;
-  --table-bg: radial-gradient(circle at center, #0f5132 0%, #0b3d26 100%);
-  --surface: rgba(255, 255, 255, 0.08);
-  --surface-strong: rgba(255, 255, 255, 0.14);
-  --surface-border: rgba(255, 255, 255, 0.16);
-  --text-primary: #f8fafc;
-  --text-muted: rgba(248, 250, 252, 0.72);
-  --accent: #ffc107;
-  --card-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  --app-bg: #081f1a;
+  --table-bg: radial-gradient(ellipse at 50% 40%, #164634 0%, #0b3327 52%, #081f1a 100%);
+  --surface: rgba(18, 54, 44, 0.85);
+  --surface-strong: rgba(42, 82, 67, 0.9);
+  --surface-border: rgba(245, 245, 229, 0.16);
+  --text-primary: #f6f6ef;
+  --text-muted: rgba(239, 243, 234, 0.75);
+  --accent: #e8bf78;
+  --card-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
   --card-border-color: #ffffff;
 }
 
@@ -120,7 +120,7 @@
 .uno-surface {
   background-color: var(--surface);
   border: 1px solid var(--surface-border);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
 }
 
 .uno-card-shadow {
