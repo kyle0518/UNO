@@ -1,64 +1,112 @@
 import { motion } from 'motion/react'
+import type { PublicPlayer } from '@/generated/PublicPlayer'
 import { useTranslation } from '@/i18n'
 import { animDurationMultiplier, useSettings } from '@/settings/useSettings'
 
 export interface DirectionRingProps {
   direction: number
-  large?: boolean
+  currentSeat: number
+  mySeat: number
+  players: PublicPlayer[]
+  playerNames: string[]
 }
 
+/**
+ * Turn route, not a decorative arrow: the sequence comes from the game
+ * direction and skips eliminated seats. The current seat anchors the route.
+ */
 export function DirectionRing({
   direction,
-  large = false,
+  currentSeat,
+  mySeat,
+  players,
+  playerNames,
 }: DirectionRingProps) {
   const { t } = useTranslation()
   const animSpeed = useSettings((s) => s.animSpeed)
-  const isCounter = direction < 0
-  const durationSec = 0.5 * animDurationMultiplier(animSpeed)
+  const clockwise = direction >= 0
+  const duration = 0.35 * animDurationMultiplier(animSpeed)
+
+  const activeSeats = players.filter((player) => !player.eliminated)
+  const step = clockwise ? 1 : -1
+  const ordered: PublicPlayer[] = []
+  if (players.length > 0) {
+    for (let i = 0; i < players.length; i += 1) {
+      const seat = (currentSeat + i * step + players.length * 2) % players.length
+      const player = players.find((p) => p.seat === seat)
+      if (player && !player.eliminated) ordered.push(player)
+    }
+  }
+  const first = ordered[0] ?? activeSeats[0]
+  const next = ordered[1] ?? null
+  const seatName = (seat: number) =>
+    seat === mySeat
+      ? t('game.playerYou')
+      : playerNames[seat] ?? t('game.playerAi', { seat })
 
   return (
-    <motion.div
-      role="img"
-      aria-label={isCounter ? t('game.reverseDir') : t('game.forwardDir')}
-      animate={{ rotateY: isCounter ? 180 : 0 }}
-      transition={{ duration: durationSec, ease: 'easeInOut' }}
-      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+    <aside
+      className="uno-route-panel"
+      aria-label={t('game.turnOrder')}
+      data-direction={clockwise ? 'clockwise' : 'counter-clockwise'}
     >
-      <svg
-        viewBox="0 0 260 190"
-        className={[
-          'h-full w-full opacity-40',
-          large ? 'max-w-[380px]' : 'max-w-[300px]',
-        ].join(' ')}
-        aria-hidden="true"
-      >
-        <ellipse
-          cx="130"
-          cy="95"
-          rx="118"
-          ry="82"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="2.5"
-          strokeDasharray="10 8"
-        />
-        <path
-          d="M 238 80 L 248 95 L 232 100"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M 22 110 L 12 95 L 28 90"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </motion.div>
+      <div className="uno-route-head">
+        <div>
+          <p className="uno-eyebrow">{t('game.turnOrder')}</p>
+          <div className="uno-route-direction" aria-live="polite">
+            <motion.span
+              className="uno-route-glyph"
+              aria-hidden="true"
+              animate={{ rotate: clockwise ? 0 : -180 }}
+              transition={{ duration, ease: 'easeInOut' }}
+            >
+              {clockwise ? '↻' : '↺'}
+            </motion.span>
+            <span>{clockwise ? t('game.forwardDir') : t('game.reverseDir')}</span>
+          </div>
+        </div>
+        <div className="uno-route-flow" aria-hidden="true">
+          <span className="uno-route-flow-dot" />
+          <span className="uno-route-flow-line" />
+          <span className="uno-route-flow-arrow">›</span>
+        </div>
+      </div>
+
+      <div className="uno-route-players">
+        {ordered.slice(0, 5).map((player, idx) => (
+          <div
+            key={player.seat}
+            className="uno-route-item"
+            data-active={idx === 0}
+            data-next={idx === 1}
+          >
+            <span className="uno-route-node">{idx + 1}</span>
+            <span className="uno-route-name">{seatName(player.seat)}</span>
+            {idx < Math.min(ordered.length, 5) - 1 && (
+              <span className="uno-route-separator" aria-hidden="true">›</span>
+            )}
+          </div>
+        ))}
+        {ordered.length > 5 && (
+          <span className="uno-route-more">+{ordered.length - 5}</span>
+        )}
+      </div>
+
+      <div className="uno-route-summary">
+        <div>
+          <span className="uno-route-summary-label">{t('game.onTurn')}</span>
+          <strong className="uno-route-summary-name">
+            {first ? seatName(first.seat) : '—'}
+          </strong>
+        </div>
+        <span className="uno-route-summary-arrow" aria-hidden="true">→</span>
+        <div>
+          <span className="uno-route-summary-label">{t('game.nextInOrder')}</span>
+          <strong className="uno-route-summary-name">
+            {next ? seatName(next.seat) : '—'}
+          </strong>
+        </div>
+      </div>
+    </aside>
   )
 }

@@ -1,0 +1,571 @@
+/* Gameplay v3 — redesigned composition, not a recolor of the original table. */
+.uno-arena-v3 {
+  padding: 14px 16px 16px;
+  background:
+    radial-gradient(ellipse at 48% 32%, rgba(56, 110, 91, .19), transparent 65%),
+    linear-gradient(155deg, #0b2421 0%, #071b1b 100%);
+}
+
+.uno-arena-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 252px);
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.uno-play-canvas {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(227, 233, 222, .17);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(21, 64, 52, .83), rgba(8, 40, 34, .98)),
+    var(--app-bg);
+  box-shadow: inset 0 1px rgba(255,255,255,.055), 0 16px 40px rgba(0,0,0,.16);
+}
+
+.uno-play-canvas::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: .13;
+  background: repeating-linear-gradient(
+    114deg, transparent 0 5px, rgba(255,255,255,.035) 6px, transparent 7px
+  );
+}
+
+.uno-play-canvas-header,
+.uno-play-canvas-seats,
+.uno-play-field {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.uno-play-canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px 11px;
+  border-bottom: 1px solid rgba(236, 241, 233, .09);
+}
+
+.uno-play-canvas-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.uno-play-canvas-kicker,
+.uno-eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.uno-play-canvas-round {
+  color: rgba(245, 248, 239, .56);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.uno-play-canvas-player-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(245, 248, 239, .76);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.uno-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a4e4b0;
+  box-shadow: 0 0 0 4px rgba(164,228,176,.1);
+}
+
+.uno-play-canvas-seats {
+  padding: 9px 12px 0;
+}
+
+.uno-play-canvas-seats > section {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 0 8px;
+  scrollbar-width: thin;
+}
+
+.uno-play-canvas-seats .uno-opponent-chip {
+  min-width: 122px;
+  padding: 9px 12px;
+  border: 1px solid rgba(244, 250, 234, .15);
+  border-radius: 15px;
+  background: rgba(4, 25, 24, .55);
+  box-shadow: none;
+}
+
+.uno-play-canvas-seats .uno-opponent-chip[data-current="true"] {
+  border-color: var(--accent);
+  background: rgba(232,191,120,.12);
+  box-shadow: inset 0 0 0 1px rgba(232,191,120,.12);
+}
+
+.uno-play-canvas-seats .uno-opponent-chip[data-current="true"]::before {
+  position: absolute;
+  top: 0;
+  left: 19%;
+  width: 62%;
+  height: 2px;
+  border-radius: 0 0 4px 4px;
+  background: var(--accent);
+  content: "";
+}
+
+.uno-play-field {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin: 4px 20px 18px;
+  border: 1px solid rgba(225, 239, 211, .11);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 50% 47%, rgba(42, 104, 78, .48), rgba(5, 37, 33, .35) 65%, rgba(4, 30, 27, .45));
+  box-shadow: inset 0 0 46px rgba(0,0,0,.15);
+}
+
+.uno-play-field::after {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(223,232,202,.05);
+  border-radius: 12px;
+  content: "";
+  pointer-events: none;
+}
+
+.uno-play-field-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(58%, 390px);
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(236,229,196,.1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.uno-play-field-orbit--outer {
+  width: min(79%, 535px);
+  border-color: rgba(236,229,196,.045);
+}
+
+.uno-play-field-caption {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  color: rgba(246,244,226,.43);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+.uno-arena-v3 .uno-arena-pile {
+  z-index: 3;
+  margin: 12px 0 0;
+  transform: scale(1.13);
+}
+
+.uno-arena-v3 .uno-pile-grid {
+  gap: 42px;
+}
+
+.uno-arena-v3 .uno-pile-stack {
+  gap: 12px;
+}
+
+.uno-arena-v3 .uno-draw-deck {
+  filter: drop-shadow(0 18px 16px rgba(0,0,0,.22));
+}
+
+.uno-route-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 20px;
+  border: 1px solid rgba(237,231,208,.17);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(36, 55, 48, .91), rgba(14, 31, 29, .96));
+  box-shadow: inset 0 1px rgba(255,255,255,.05), 0 15px 36px rgba(0,0,0,.14);
+}
+
+.uno-route-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.uno-route-direction {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 13px;
+  color: #fff7e7;
+  font-size: clamp(16px, 1.8vw, 24px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  white-space: nowrap;
+}
+
+.uno-route-glyph {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(237, 192, 118, .25);
+  border-radius: 14px;
+  background: rgba(237, 192, 118, .10);
+  color: var(--accent);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.uno-route-flow {
+  display: none;
+}
+
+.uno-route-players {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 5px;
+  padding: 17px 0;
+  border-top: 1px solid rgba(240,248,229,.11);
+  border-bottom: 1px solid rgba(240,248,229,.11);
+}
+
+.uno-route-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.uno-route-node {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(247,245,237,.18);
+  border-radius: 8px;
+  background: rgba(248,249,232,.055);
+  color: rgba(248,246,233,.6);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.uno-route-item[data-active="true"] .uno-route-node {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1b2c27;
+}
+
+.uno-route-item[data-next="true"] .uno-route-node {
+  border-color: rgba(238,197,130,.55);
+  color: var(--accent);
+}
+
+.uno-route-name {
+  max-width: 88px;
+  overflow: hidden;
+  color: rgba(244,246,237,.77);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uno-route-separator {
+  color: rgba(232,191,120,.55);
+  font-size: 17px;
+}
+
+.uno-route-more {
+  color: rgba(244,246,237,.65);
+  font-size: 11px;
+}
+
+.uno-route-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.uno-route-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uno-route-summary-label {
+  color: rgba(244,246,237,.48);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.uno-route-summary-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: #f7f5ec;
+  font-size: 18px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uno-route-summary-arrow {
+  color: var(--accent);
+  font-size: 28px;
+  line-height: 1;
+}
+
+[data-theme="neon"] .uno-arena-v3 {
+  background: linear-gradient(150deg, #100d26, #060b1a);
+}
+[data-theme="neon"] .uno-play-canvas {
+  background: linear-gradient(145deg, #221343, #0e1431);
+}
+[data-theme="neon"] .uno-play-field {
+  background: radial-gradient(ellipse, #282055, #120e2b);
+}
+[data-theme="neon"] .uno-route-panel {
+  background: linear-gradient(145deg, #251847, #0f0a23);
+}
+[data-theme="minimal"] .uno-arena-v3 {
+  background: #f2f5f3;
+}
+[data-theme="minimal"] .uno-play-canvas {
+  background: #edf2f0;
+  border-color: #cad7cf;
+}
+[data-theme="minimal"] .uno-play-canvas-header {
+  border-color: #cfdbd5;
+}
+[data-theme="minimal"] .uno-play-field {
+  background: radial-gradient(ellipse, #dceae3, #eaf1ec);
+  border-color: #c8d8cc;
+}
+[data-theme="minimal"] .uno-route-panel {
+  background: #e6edeb;
+  border-color: #c8d4cd;
+}
+[data-theme="minimal"] .uno-route-direction,
+[data-theme="minimal"] .uno-route-name,
+[data-theme="minimal"] .uno-route-summary-name {
+  color: #193b33;
+}
+[data-theme="minimal"] .uno-play-canvas-round,
+[data-theme="minimal"] .uno-play-canvas-player-count,
+[data-theme="minimal"] .uno-route-summary-label {
+  color: #53736a;
+}
+[data-theme="minimal"] .uno-opponent-chip {
+  background: rgba(255,255,255,.85);
+}
+[data-theme="minimal"] .uno-play-field-caption {
+  color: #5b7868;
+}
+[data-theme="minimal"] .uno-route-players {
+  border-color: #c6d7ce;
+}
+
+@media (max-width: 900px) {
+  .uno-arena-layout {
+    grid-template-columns: minmax(0,1fr) 205px;
+    gap: 10px;
+  }
+  .uno-route-panel {
+    padding: 18px 13px;
+    gap: 12px;
+  }
+  .uno-route-direction {
+    font-size: 17px;
+  }
+  .uno-route-glyph {
+    width: 34px;
+    height: 34px;
+    font-size: 28px;
+  }
+  .uno-play-canvas-seats .uno-opponent-chip {
+    min-width: 98px;
+  }
+}
+
+@media (max-width: 767px) {
+  .uno-arena-v3 {
+    padding: 8px;
+  }
+  .uno-arena-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+  }
+  .uno-play-canvas {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    border-radius: 18px;
+  }
+  .uno-play-canvas-header {
+    padding: 9px 13px;
+  }
+  .uno-play-canvas-seats {
+    padding: 7px 7px 0;
+  }
+  .uno-play-canvas-seats > section {
+    justify-content: flex-start;
+    padding-bottom: 6px;
+  }
+  .uno-play-canvas-seats .uno-opponent-chip {
+    min-width: 105px;
+    padding: 7px 9px;
+  }
+  .uno-play-field {
+    margin: 0 9px 9px;
+    border-radius: 12px;
+  }
+  .uno-play-field::after {
+    inset: 5px;
+    border-radius: 9px;
+  }
+  .uno-play-field-caption {
+    top: 9px;
+    left: 12px;
+    font-size: 8px;
+  }
+  .uno-arena-v3 .uno-arena-pile {
+    margin: 8px 0 0;
+    transform: scale(.94);
+  }
+  .uno-arena-v3 .uno-pile-grid {
+    gap: 24px;
+  }
+  .uno-route-panel {
+    flex: none;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+  .uno-route-head {
+    align-items: center;
+  }
+  .uno-route-head .uno-eyebrow {
+    display: none;
+  }
+  .uno-route-direction {
+    margin-top: 0;
+    font-size: 14px;
+  }
+  .uno-route-glyph {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 23px;
+  }
+  .uno-route-players {
+    flex-wrap: nowrap;
+    gap: 7px;
+    padding: 2px 0;
+    overflow-x: auto;
+    border: none;
+    scrollbar-width: none;
+  }
+  .uno-route-players::-webkit-scrollbar {
+    display: none;
+  }
+  .uno-route-item {
+    flex-shrink: 0;
+  }
+  .uno-route-name {
+    max-width: 56px;
+    font-size: 10px;
+  }
+  .uno-route-node {
+    width: 19px;
+    height: 19px;
+    border-radius: 6px;
+    font-size: 10px;
+  }
+  .uno-route-separator {
+    font-size: 12px;
+  }
+  .uno-route-summary {
+    display: none;
+  }
+}
+
+@media (max-height: 610px) {
+  .uno-arena-v3 {
+    padding: 5px;
+  }
+  .uno-play-canvas-header {
+    padding: 6px 10px;
+  }
+  .uno-play-canvas-seats .uno-opponent-chip {
+    padding: 4px 7px;
+  }
+  .uno-play-canvas-seats .uno-opponent-chip .h-9 {
+    width: 28px;
+    height: 28px;
+  }
+  .uno-arena-v3 .uno-arena-pile {
+    margin-top: 0;
+    transform: scale(.76);
+  }
+  .uno-route-panel {
+    gap: 6px;
+    padding: 7px 10px;
+  }
+  .uno-route-players {
+    padding: 0;
+  }
+  .uno-route-summary {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uno-route-glyph {
+    transition: none;
+  }
+}

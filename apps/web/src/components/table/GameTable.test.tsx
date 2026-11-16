@@ -89,8 +89,9 @@ describe('GameTable', () => {
     )
 
     expect(screen.getByTestId('pending-draw-badge')).toHaveTextContent('+2')
-    expect(screen.getByText('AI 1')).toBeInTheDocument()
-    expect(screen.getByText('AI 2')).toBeInTheDocument()
+    expect(screen.getAllByText('AI 1').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('AI 2').length).toBeGreaterThan(0)
+    expect(screen.getByRole('complementary', { name: /出牌方向|Turn order/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /紅色 8|Red 8/i }))
     expect(onSendAction).toHaveBeenCalledWith({ type: 'play', card: 10 })
@@ -103,6 +104,65 @@ describe('GameTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /抓!|Catch!/i }))
     expect(onSendAction).toHaveBeenCalledWith({ type: 'catch_uno', target: 2 })
+  })
+
+  it('renders a readable direction guide and updates route order after a reverse', () => {
+    const view = sampleView()
+    const { rerender } = render(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={vi.fn()}
+          onSendAction={vi.fn()}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+
+    let guide = screen.getByRole('complementary', { name: /出牌方向|Turn order/i })
+    expect(guide).toHaveAttribute('data-direction', 'clockwise')
+    expect(guide.textContent).toMatch(/順時針|Clockwise/)
+    expect(guide.textContent).toMatch(/AI 1/)
+    expect(guide.querySelectorAll('.uno-route-item')[1]?.textContent).toContain('AI 1')
+
+    view.direction = -1
+    rerender(
+      <MemoryRouter>
+        <GameTable
+          view={view}
+          playerNames={['You', 'AI 1', 'AI 2', 'AI 3']}
+          selectedCardId={null}
+          timer={null}
+          lastError={null}
+          activeFx={null}
+          unoPopup={null}
+          skippedSeat={null}
+          colorRipple={null}
+          flipping={false}
+          confettiSeq={0}
+          onSelectCard={vi.fn()}
+          onSendAction={vi.fn()}
+          onNextRound={vi.fn()}
+          onLeaveRequest={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    guide = screen.getByRole('complementary', { name: /出牌方向|Turn order/i })
+    expect(guide).toHaveAttribute('data-direction', 'counter-clockwise')
+    expect(guide.textContent).toMatch(/逆時針|Counter-clockwise/)
+    expect(guide.textContent).toMatch(/AI 3/)
+    expect(guide.querySelectorAll('.uno-route-item')[1]?.textContent).toContain('AI 3')
   })
 
   it('deselects card when clicking empty table background and shows team / eliminated notices', () => {
