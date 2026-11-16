@@ -55,6 +55,20 @@ jobs:
       - name: Run frontend regression tests
         run: pnpm -C apps/web test
 
+      - name: Install Playwright Chromium
+        run: pnpm -C apps/web exec playwright install --with-deps chromium
+
+      - name: Verify actual mobile gameplay layouts
+        run: pnpm -C apps/web exec playwright test e2e/mobile-game-layout.spec.ts --project=chromium
+
+      - name: Upload mobile layout screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-layout-screenshots
+          path: apps/web/mobile-screenshots
+          if-no-files-found: ignore
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

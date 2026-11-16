@@ -71,7 +71,8 @@ export function GameTable({
     '(min-width: 768px) and (orientation: landscape)',
   )
   const isShortViewport = useMediaQuery('(max-height: 520px)')
-  const tableCardSize = isLandscapeDesktop ? 'lg' : isShortViewport ? 'sm' : 'md'
+  // Short landscape phones must never get the 165px desktop cards.
+  const tableCardSize = isShortViewport ? 'sm' : isLandscapeDesktop ? 'lg' : 'md'
 
   const mySeat = view.me ?? 0
   const n = view.players.length
@@ -302,7 +303,7 @@ export function GameTable({
                 side={view.side}
                 legal={view.legal}
                 selectedCardId={selectedCardId}
-                compact={!isLandscapeDesktop}
+                compact={!isLandscapeDesktop || isShortViewport}
                 cardSize={tableCardSize}
                 onSelectCard={onSelectCard}
                 onPlayAction={onSendAction}

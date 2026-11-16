@@ -34,9 +34,9 @@ const SIZE_CLASSES: Record<CardSize, string> = {
 const STATE_CLASSES: Record<CardState, string> = {
   normal: '',
   playable:
-    '-translate-y-2 ring-2 ring-accent shadow-[0_0_16px_var(--accent)]',
+    'ring-2 ring-accent/85 shadow-[0_0_10px_var(--accent)]',
   selected:
-    '-translate-y-6 ring-3 ring-accent shadow-[0_0_20px_var(--accent)]',
+    '-translate-y-2 ring-3 ring-accent shadow-[0_0_14px_var(--accent)]',
   disabled: 'cursor-not-allowed',
 }
 

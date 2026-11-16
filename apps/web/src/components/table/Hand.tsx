@@ -170,7 +170,9 @@ export function Hand({
   const overlapMargin = step - cardWidth
   const useAnim = animSpeed !== 'off'
   // Fan only when the complete hand fits. Horizontal scrolling stays flat and usable.
-  const fanAmount = compact ? 7 : 9
+  // Touch hands stay level; desktop fans are deliberately subtle.
+  // A playable card must not jump vertically relative to its neighbors.
+  const fanAmount = compact || scrollable ? 0 : 3
   const fanDenom = Math.max(1, (n - 1) / 2)
 
   return (
@@ -184,13 +186,16 @@ export function Hand({
       }}
       className={[
         'uno-hand-rail relative flex w-full shrink-0 overflow-x-auto px-2 select-none sm:px-4',
-        resolvedSize === 'sm' ? 'pb-2 pt-3' : 'pb-4 pt-9',
+        resolvedSize === 'sm'
+          ? 'pb-2 pt-3'
+          : resolvedSize === 'md'
+            ? 'pb-3 pt-5'
+            : 'pb-4 pt-7',
       ].join(' ')}
       style={{
-        paddingBottom:
-          resolvedSize === 'sm'
-            ? 'max(0.25rem, env(safe-area-inset-bottom))'
-            : 'max(0.75rem, env(safe-area-inset-bottom))',
+        // The player dock owns the phone safe-area inset. Applying it here as
+        // well would double the bottom gap and shrink the playable table.
+        paddingBottom: resolvedSize === 'sm' ? '0.5rem' : '0.75rem',
       }}
     >
       <div
@@ -212,8 +217,7 @@ export function Hand({
           const isDragging = dragState?.cardId === card.id
           const dragOffsetY = isDragging ? dragState.offsetY : 0
           const fanOffset = n <= 1 ? 0 : (idx - (n - 1) / 2) / fanDenom
-          const fanRotation = scrollable ? 0 : fanOffset * fanAmount
-          const fanDrop = scrollable ? 0 : (1 - fanOffset * fanOffset) * -8
+          const fanRotation = fanOffset * fanAmount
 
           const releaseCapture = (el: HTMLDivElement, pointerId: number) => {
             try {
@@ -252,12 +256,13 @@ export function Hand({
               }}
               layoutId={useAnim ? `card-${card.id}` : undefined}
               animate={{
-                y: dragOffsetY + fanDrop,
+                y: dragOffsetY,
                 rotate: fanRotation,
               }}
               transition={isDragging || !useAnim ? { duration: 0 } : { type: 'spring', stiffness: 360, damping: 30 }}
               data-card-id={card.id}
               data-playable={isPlayable ? 'true' : 'false'}
+              data-selected={isSelected ? 'true' : 'false'}
               style={{
                 marginLeft: idx === 0 ? 0 : `${overlapMargin}px`,
                 zIndex: isDragging ? 60 : isSelected ? 50 : idx + 1,

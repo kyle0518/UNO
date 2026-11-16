@@ -588,7 +588,8 @@
 
 @media (max-height: 500px) {
   .uno-arena-v4 .uno-arena-pile {
-    transform: scale(.62);
+    /* Keep draw/discard targets large enough to touch on landscape phones. */
+    transform: scale(.82);
   }
 
   .uno-table-center {
