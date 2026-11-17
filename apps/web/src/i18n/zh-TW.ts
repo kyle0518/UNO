@@ -202,6 +202,7 @@ export const zhTW = {
   'solo.botRandom': '簡單 (Random)',
   'solo.botHeuristic': '標準 (Heuristic)',
   'solo.botHard': '困難 (Hard ISMCTS)',
+  'solo.botHell': '地獄 (Hell ISMCTS 樹搜尋)',
   'solo.houseRules': '房規與細節設定',
   'solo.scoring': '計分規則',
   'solo.scoringPoints': '累計積分制',

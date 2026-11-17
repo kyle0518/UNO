@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use serde::{de::DeserializeOwned, Serialize};
 use serde_wasm_bindgen::Serializer;
-use uno_bots::{make_bot, Bot, BotKind, HardBot, MOBILE_SIMS};
+use uno_bots::{make_bot, Bot, BotKind, HardBot, HellBot, HELL_SIMS, MOBILE_SIMS};
 use uno_core::{
     action_mask, filter_events as core_filter_events, index_to_action as core_index_to_action,
     observe, replay as core_replay, Action, Event, GameState, PlayerView, Replay, ReplayPlayer,
@@ -61,6 +61,7 @@ fn build_wasm_bot(kind: &str, seed: u64) -> Result<Box<dyn Bot>, String> {
     let parsed = BotKind::from_str(kind).map_err(|e| e.to_string())?;
     match parsed {
         BotKind::Hard => Ok(Box::new(HardBot::new(seed, MOBILE_SIMS))),
+        BotKind::Hell => Ok(Box::new(HellBot::new(seed, HELL_SIMS))),
         other => make_bot(&other, seed).map_err(|e| e.to_string()),
     }
 }
@@ -232,6 +233,7 @@ mod tests {
         assert!(build_wasm_bot("random", 1).is_ok());
         assert!(build_wasm_bot("heuristic", 1).is_ok());
         assert!(build_wasm_bot("hard", 1).is_ok());
+        assert!(build_wasm_bot("hell", 1).is_ok());
         assert!(build_wasm_bot("onnx:foo.onnx", 1).is_err());
         assert!(build_wasm_bot("invalid", 1).is_err());
     }

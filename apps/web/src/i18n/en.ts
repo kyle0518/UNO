@@ -204,6 +204,7 @@ export const en = {
   'solo.botRandom': 'Easy (Random)',
   'solo.botHeuristic': 'Standard (Heuristic)',
   'solo.botHard': 'Hard (ISMCTS)',
+  'solo.botHell': 'Hell (ISMCTS Tree Search)',
   'solo.houseRules': 'House Rules & Options',
   'solo.scoring': 'Scoring',
   'solo.scoringPoints': 'Target Points',

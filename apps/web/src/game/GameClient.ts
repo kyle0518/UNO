@@ -2,7 +2,7 @@ import type { Action } from '@/generated/Action'
 import type { Event } from '@/generated/Event'
 import type { PlayerView } from '@/generated/PlayerView'
 
-export type BotKind = 'random' | 'heuristic' | 'hard'
+export type BotKind = 'random' | 'heuristic' | 'hard' | 'hell'
 export type SeatKind = 'human' | BotKind
 
 export interface LocalTurnTimer {

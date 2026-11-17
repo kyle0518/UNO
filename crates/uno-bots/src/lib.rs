@@ -1,6 +1,7 @@
 //! UNO AI Bot 介面與實作（Random、Heuristic、Hard ISMCTS，以及預留的 ONNX 介面）。
 
 pub mod hard;
+pub mod hell;
 pub mod heuristic;
 pub mod random;
 pub(crate) mod tactical;
@@ -12,6 +13,7 @@ use thiserror::Error;
 use uno_core::{Action, PlayerView};
 
 pub use hard::{HardBot, DEFAULT_SIMS, MOBILE_SIMS};
+pub use hell::{HellBot, HELL_SIMS};
 pub use heuristic::HeuristicBot;
 pub use random::RandomBot;
 
@@ -30,6 +32,7 @@ pub enum BotKind {
     Random,
     Heuristic,
     Hard,
+    Hell,
     Onnx(String),
 }
 
@@ -39,6 +42,7 @@ impl fmt::Display for BotKind {
             BotKind::Random => f.write_str("random"),
             BotKind::Heuristic => f.write_str("heuristic"),
             BotKind::Hard => f.write_str("hard"),
+            BotKind::Hell => f.write_str("hell"),
             BotKind::Onnx(path) => write!(f, "onnx:{path}"),
         }
     }
@@ -52,6 +56,7 @@ impl FromStr for BotKind {
             "random" => Ok(BotKind::Random),
             "heuristic" => Ok(BotKind::Heuristic),
             "hard" => Ok(BotKind::Hard),
+            "hell" => Ok(BotKind::Hell),
             other => {
                 if let Some(path) = other.strip_prefix("onnx:") {
                     if path.is_empty() {
@@ -84,6 +89,7 @@ pub fn make_bot(kind: &BotKind, seed: u64) -> Result<Box<dyn Bot>, BotError> {
         BotKind::Random => Ok(Box::new(RandomBot::new(seed))),
         BotKind::Heuristic => Ok(Box::new(HeuristicBot::new())),
         BotKind::Hard => Ok(Box::new(HardBot::new(seed, DEFAULT_SIMS))),
+        BotKind::Hell => Ok(Box::new(HellBot::new(seed, HELL_SIMS))),
         BotKind::Onnx(path) => Err(BotError::OnnxUnsupported(path.clone())),
     }
 }

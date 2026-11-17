@@ -18,8 +18,39 @@ pub const MOBILE_SIMS: usize = 200;
 const ROOT_PRIOR_PSEUDOCOUNT: f64 = 4.0;
 const ROOT_PRIOR_BASE: f64 = 0.22;
 const ROOT_PRIOR_SPAN: f64 = 0.06;
-// 前瞻深度 44 步（約 11 輪桌面週期）：覆蓋多數終局同時維持高模擬吞吐
-const MAX_ROLLOUT_STEPS: usize = 44;
+// 中局前瞻深度 150 步：覆蓋多數回合中段同時維持模擬吞吐（arena 實測優於 44/300）
+const MAX_ROLLOUT_STEPS: usize = 150;
+// 殘局前瞻深度：手牌少時直接打到回合結束，讓終局決策接近精確解
+const ENDGAME_ROLLOUT_STEPS: usize = 1_000;
+
+/// 依局面決定 rollout 步數上限：人少、自己或任一對手接近出清、手牌總數低時視為殘局。
+pub(crate) fn rollout_horizon(state: &GameState, me: Seat, n: usize) -> usize {
+    if n <= 2 {
+        return ENDGAME_ROLLOUT_STEPS;
+    }
+    let my_hand = state.hand_ids(me).len();
+    if my_hand <= 3 {
+        return ENDGAME_ROLLOUT_STEPS;
+    }
+    let mut total = 0_usize;
+    let mut min_other = usize::MAX;
+    for i in 0..n {
+        let s = i as Seat;
+        if state.is_eliminated(s) {
+            continue;
+        }
+        let len = state.hand_ids(s).len();
+        total += len;
+        if s != me {
+            min_other = min_other.min(len);
+        }
+    }
+    if min_other <= 2 || total <= 16 {
+        ENDGAME_ROLLOUT_STEPS
+    } else {
+        MAX_ROLLOUT_STEPS
+    }
+}
 
 /// 使用 Information Set Monte Carlo Tree Search（扁平根節點 + UCB1）的困難 Bot。
 #[derive(Debug, Clone)]
@@ -184,7 +215,7 @@ fn root_bayes_score(visits: usize, total_value: f64, prior: f64) -> f64 {
     (total_value + ROOT_PRIOR_PSEUDOCOUNT * prior_mean) / (v + ROOT_PRIOR_PSEUDOCOUNT)
 }
 
-fn build_root_candidates(view: &PlayerView) -> Vec<Action> {
+pub(crate) fn build_root_candidates(view: &PlayerView) -> Vec<Action> {
     let has_play = view
         .legal
         .iter()
@@ -232,7 +263,7 @@ fn build_root_candidates(view: &PlayerView) -> Vec<Action> {
     }
 }
 
-fn choose_challenge_from_view(view: &PlayerView) -> Action {
+pub(crate) fn choose_challenge_from_view(view: &PlayerView) -> Action {
     let me = view.decision_player.or(view.me).unwrap_or(0);
     let my_hand_len = view.my_hand.len();
     let n = view.players.len();
@@ -298,7 +329,7 @@ fn total_cards_of_color(config: &RuleConfig) -> usize {
     per_deck * usize::from(config.deck_count.max(1))
 }
 
-fn simulate_on_world(
+pub(crate) fn simulate_on_world(
     base_world: &GameState,
     me: Seat,
     root_action: Action,
@@ -313,10 +344,9 @@ fn simulate_on_world(
         return 0.0;
     };
 
+    let horizon = rollout_horizon(&sim_state, me, num_players);
     let mut steps = 0_usize;
-    while !matches!(sim_state.phase(), Phase::RoundOver | Phase::GameOver)
-        && steps < MAX_ROLLOUT_STEPS
-    {
+    while !matches!(sim_state.phase(), Phase::RoundOver | Phase::GameOver) && steps < horizon {
         steps += 1;
 
         if let Some(u_seat) = sim_state.uno_window() {
@@ -401,7 +431,7 @@ fn choose_challenge_in_world(sim_state: &GameState, actor: Seat, legal: &[Action
     }
 }
 
-fn evaluate_rollout(
+pub(crate) fn evaluate_rollout(
     sim_state: &GameState,
     last_events: &[Event],
     me: Seat,
@@ -576,5 +606,30 @@ fn reward_from_rankings(rankings: &[Seat], me: Seat, total_players: usize) -> f6
     match rankings.iter().position(|&s| s == me) {
         Some(rank) => 1.0 - (rank as f64) / denom,
         None => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rollout_horizon_uses_endgame_depth_for_two_players() {
+        let cfg = RuleConfig::preset("classic", 2).expect("preset");
+        let state = GameState::new(cfg, 1).expect("state");
+        assert_eq!(
+            rollout_horizon(&state, 0, 2),
+            ENDGAME_ROLLOUT_STEPS,
+            "2 人對局應直接打到回合結束"
+        );
+    }
+
+    #[test]
+    fn rollout_horizon_uses_midgame_depth_at_opening() {
+        let cfg = RuleConfig::preset("classic", 4).expect("preset");
+        let state = GameState::new(cfg, 1).expect("state");
+        // 開局每人 7 張、總數 28，非殘局
+        assert_eq!(rollout_horizon(&state, 0, 4), MAX_ROLLOUT_STEPS);
+        assert_eq!(MAX_ROLLOUT_STEPS, 150);
     }
 }

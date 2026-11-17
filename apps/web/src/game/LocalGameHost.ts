@@ -523,7 +523,7 @@ export class LocalGameHost {
       if (!canCatch) continue
 
       const chance =
-        entry.kind === 'hard' ? 0.7 : entry.kind === 'heuristic' ? 0.3 : 0
+        entry.kind === 'hell' ? 0.9 : entry.kind === 'hard' ? 0.7 : entry.kind === 'heuristic' ? 0.3 : 0
       if (chance <= 0 || this.nextRand() >= chance) continue
 
       const delay =

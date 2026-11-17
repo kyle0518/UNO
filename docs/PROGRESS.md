@@ -36,6 +36,8 @@
 - [x] T3.1 Random、Heuristic (2026-11-13: 實作 Bot trait、BotKind/BotError/make_bot、RandomBot 與 HeuristicBot 含 7 項規則與全模式 1,000 局測試，check.sh 全過)
 - [x] T3.2 Hard（ISMCTS） (2026-11-13: 實作 HardBot 扁平根節點兩階段配對 CRN + tactical rollout + Horizon-44 Softmax 殘局校準 + from_view_sampled，測試決定性與多模式合法性全過)
 - [x] T3.3 uno-sim CLI（貼勝率結果） (2026-11-13: 實作 arena CLI 含輪轉座位與 Wilson 95% CI；heuristic vs 3x random 2000 局 1996 勝 = 99.80% [99.49%, 99.92%] AvgRank 1.002；hard vs 3x heuristic 400 局 124 勝 = 31.00% [26.67%, 35.70%] AvgRank 2.270；check.sh 全過)
+  - 2026-11-16 AI 強化（搜尋演算）：Hard bot rollout 深度改為自適應——中局 44→150 步、殘局（2 人／自己 ≤3 張／任一對手 ≤2 張／總手牌 ≤16）直接打到回合結束（1000 步）；新增 rollout_horizon 單元測試。arena 單回合 1000 局（seed 99）：舊版 25.00% → 新版 27.20% [24.53%, 30.04%]（seed 7 亦 27.10%）；完整 500 分對局 800 局新舊 27.75% vs 28.75% 在信賴區間內視為持平；2 人單回合 64.00%、NoMercy 51.00%、Flip 26.50%。實驗後撤除的方案：點數負債評估（完整對局無助益）、關鍵局面加倍 sims（更慢且未變強）、深度 220/300（不如 150）。另順手修復上游 DirectionRing 的 lint（getNextActiveSeat 移至 direction.ts），check.sh 全過
+  - 2026-11-16 地獄難度 Hell bot（網路調研後實作）：依近年 ISMCTS 文獻（SO/MO-ISMCTS 單樹跨 determinization 累積統計、ensemble determinization）實作 crates/uno-bots/src/hell.rs——單一資訊集搜尋樹（UCB1＋行動者視角回傳）、每次迭代新取樣世界、樹節點以抽象牌面鍵共享統計（解 card-id 跨世界對不上的問題）、根節點再以 600 次 CRN 扁平 MC 集成平均；HELL_SIMS=1500。接線：BotKind::Hell、WASM（HELL_SIMS）、前端單機/房間 bot 選單「地獄」、伺服器 CatchUno 90%。arena 同場對照（classic 單回合，hell/hard/各 2 heuristic）：1000 局聚合 Hell 28.90% vs Hard 24.50%（seed 5/11/21 分別 29.00/29.50/28.25 對 21.00/27.00/23.75）；hell 測試（決定性/全模式合法）與 check.sh 全過。代價：每步思考約為 Hard 的 5–10 倍，屬選用難度
 
 ## P4 WASM 與前端基礎
 - [x] T4.1 uno-wasm（記錄 wasm gzip 大小） (2026-11-13: 完成 WasmGame/WasmBot/filter_events/preset/validate_config/replay_validate 綁定並以 json_compatible 序列化；build-wasm.sh 產出 uno_wasm_bg.wasm gzip = 231,213 bytes ≈ 225.8 KB ≤ 600 KB；wasm.test.ts 與 check.sh 全過)

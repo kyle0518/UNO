@@ -26,6 +26,7 @@ pub fn catch_chance_percent(bot_kind: &str) -> u32 {
     match BotKind::from_str(bot_kind) {
         Ok(BotKind::Random) => 0,
         Ok(BotKind::Hard) => 70,
+        Ok(BotKind::Hell) => 90,
         _ => 30,
     }
 }

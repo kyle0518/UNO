@@ -8,7 +8,7 @@ import { savePendingRemoteRoom } from '@/game/remoteSession'
 import { useTranslation, type TranslationKey } from '@/i18n'
 import { gameSocket, type SocketStatus } from '@/net/socket'
 
-const BOT_KINDS = ['random', 'heuristic', 'hard'] as const
+const BOT_KINDS = ['random', 'heuristic', 'hard', 'hell'] as const
 const EMOTES = ['thumbs_up', 'laugh', 'angry', 'cry', 'fire', 'uno'] as const
 
 interface ChatLine {

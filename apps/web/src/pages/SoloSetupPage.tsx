@@ -298,6 +298,7 @@ export function SoloSetupPage() {
                     <option value="random">{t('solo.botRandom')}</option>
                     <option value="heuristic">{t('solo.botHeuristic')}</option>
                     <option value="hard">{t('solo.botHard')}</option>
+                    <option value="hell">{t('solo.botHell')}</option>
                   </select>
                 )}
               </li>
